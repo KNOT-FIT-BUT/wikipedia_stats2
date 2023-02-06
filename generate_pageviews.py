@@ -47,7 +47,10 @@ with open(input_file) as file_in, open(output_file, "w") as file_out:
     kb = csv.reader(file_in, delimiter="\t", )
     val_counter = 0
     for row in kb:
-        link = row[8]
+        try:
+            link = row[8]
+        except Exception:
+            continue
         if link:
             article_name = link.split("/")[-1]
             pw_count = pw.get_page_views(article_name)
