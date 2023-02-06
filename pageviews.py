@@ -5,6 +5,8 @@
 ############################################
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 import argparse
 import time
 import json
@@ -26,9 +28,13 @@ class PageViews():
 
     def __init__(self, check_values:bool=True):
         self.CHECK_VALUES = check_values
+        self.session = requests.Session()
+        retry = Retry(connect=3, backoff_factor=0.5)
+        adapter = HTTPAdapter(max_retries=retry)
+        self.session.mount("https://", adapter)
 
     def __make_request(self, req_url:str) -> requests.Response:
-        return requests.get(req_url, headers=self.user_agent)
+        return self.session.get(req_url, headers=self.user_agent)
 
     ## Checks api request values
     ## (Can be turned off by CHECK_VALUES = False)
