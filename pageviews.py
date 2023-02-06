@@ -17,7 +17,7 @@ class PageViews():
     user_agent = {'User-Agent': 'Mozilla/5.0 (Windows; U; Windows NT 6.1) AppleWebKit/534.1.2 (KHTML, like Gecko) Chrome/38.0.845.0 Safari/534.1.2'}
 
     # VALID VALUES 
-    PROJECT_VALUES = ['en.wikipedia.org', 'cs.wikipedia.org', 'sk.wikipedia.org', 'www.mediawiki.org']
+    PROJECT_VALUES = ['en.wikipedia.org', 'cs.wikipedia.org', 'sk.wikipedia.org']
     ACCESS_VALUES = ["all-access", "desktop", "mobile-app", "mobile-web"]
     AGENT_VALUES = ["all-agents", "user", "spider", "automated"]
     GRANULARITY_VALUES = ["daily", "monthly"]
@@ -100,88 +100,92 @@ class PageViews():
 
         resp_data = json.loads(response.text)["items"]
         return self.__count_pageviews(resp_data)
+    
+    def parse_args(self):
+        parser = argparse.ArgumentParser()
+
+        # ARGUMENTS
+        ## Article name
+        parser.add_argument(
+            "-n","--name", 
+            type = str, 
+            required=True,
+            action="store",
+            dest="article_name",
+            help = "Valid article name",
+        )
+
+        ## Project name 
+        parser.add_argument(
+            "-p","--project", 
+            type = str, 
+            choices=self.PROJECT_VALUES,
+            action="store",
+            dest="project_name",
+            help = "Project name (en.wikipedia, cs.wikipedia, ...)",
+            default = "en.wikipedia.org"
+        )
+
+        ## Access 
+        parser.add_argument(
+            "--access", 
+            type = str, 
+            choices=self.ACCESS_VALUES,
+            action="store",
+            dest="access_type",
+            help = "Access type (all-access, desktop, mobile-app, mobile-web)",
+            default = "all-access"
+        )
+
+        ## Agent
+        parser.add_argument(
+            "--agent", 
+            type = str, 
+            choices=self.AGENT_VALUES,
+            action="store",
+            dest="agent_type",
+            help = "Access agent (all-agents, user, spider, automated)",
+            default = "all-agents"
+        )
+
+        ## Granulatity
+        parser.add_argument(
+            "--granularity", 
+            type = str, 
+            choices=self.GRANULARITY_VALUES,
+            action="store",
+            dest="granularity",
+            help = "Entries granularity (daily, monthly)",
+            default = "monthly"
+        )
+
+        ## Start timestamp
+        parser.add_argument(
+            "-s","--start", 
+            type = str, 
+            action="store",
+            dest="start_time", 
+            help = "Start timestamp: YYYYMMDD(HH)",
+            default=self.LOWEST_TIMESTAMP 
+        )
+
+        ## End timestamp
+        parser.add_argument(
+            "-e","--end", 
+            type = str, 
+            action="store",
+            dest="end_time",
+            help = "End timestamp: YYYYMMDD(HH)",
+            default = time.strftime('%Y%m%d%H', time.localtime(time.time())) # Current time
+        )
+
+        return parser.parse_args()
         
 # Run as standalone script
 if __name__ == "__main__":   
     pw = PageViews(check_values=False)
-    parser = argparse.ArgumentParser()
-
-    # ARGUMENTS
-    ## Article name
-    parser.add_argument(
-        "-n","--name", 
-        type = str, 
-        required=True,
-        action="store",
-        dest="article_name",
-        help = "Valid article name",
-    )
-
-    ## Project name 
-    parser.add_argument(
-        "-p","--project", 
-        type = str, 
-        choices=pw.PROJECT_VALUES,
-        action="store",
-        dest="project_name",
-        help = "Project name (en.wikipedia, cs.wikipedia, ...)",
-        default = "en.wikipedia.org"
-    )
-
-    ## Access 
-    parser.add_argument(
-        "--access", 
-        type = str, 
-        choices=pw.ACCESS_VALUES,
-        action="store",
-        dest="access_type",
-        help = "Access type (all-access, desktop, mobile-app, mobile-web)",
-        default = "all-access"
-    )
-
-    ## Agent
-    parser.add_argument(
-        "--agent", 
-        type = str, 
-        choices=pw.AGENT_VALUES,
-        action="store",
-        dest="agent_type",
-        help = "Access agent (all-agents, user, spider, automated)",
-        default = "all-agents"
-    )
-
-    ## Granulatity
-    parser.add_argument(
-        "--granularity", 
-        type = str, 
-        choices=pw.GRANULARITY_VALUES,
-        action="store",
-        dest="granularity",
-        help = "Entries granularity (daily, monthly)",
-        default = "monthly"
-    )
-
-    ## Start timestamp
-    parser.add_argument(
-        "-s","--start", 
-        type = str, 
-        action="store",
-        dest="start_time", 
-        help = "Start timestamp: YYYYMMDD(HH)",
-        default=pw.LOWEST_TIMESTAMP 
-    )
-
-    ## End timestamp
-    parser.add_argument(
-        "-e","--end", 
-        type = str, 
-        action="store",
-        dest="end_time",
-        help = "End timestamp: YYYYMMDD(HH)",
-        default = time.strftime('%Y%m%d%H', time.localtime(time.time())) # Current time
-    )
-
-    args = parser.parse_args()
+    
+    args = pw.parse_args()
 
     pw_count = pw.get_page_views(
         article_name = args.article_name,
