@@ -2,3 +2,6 @@ documentation/
 test.py
 test_playground/
 __pycache__/
+KB/
+dumps/
+output/
