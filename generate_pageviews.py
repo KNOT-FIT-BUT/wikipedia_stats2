@@ -141,7 +141,7 @@ class PageViews():
             chunk_counter = 1
             for line in in_file:
                 if line_counter % self.MAX_CHUNK_LENGTH == 0 and line_counter != 0:
-                    #print(f"Processing chunk {chunk_counter}", end="\r")
+                    print(f"Processing chunk {chunk_counter}", end="\r")
                     asyncio.run(self.__run_requests())
                     # try:    
                     #     asyncio.run(self.__run_requests())
