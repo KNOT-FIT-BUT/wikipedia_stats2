@@ -7,15 +7,30 @@
 import argparse
 import asyncio
 import aiohttp
+import socket
 import time
 import json
 import sys
 import re
 import os
 
+connector = aiohttp.TCPConnector(
+    # limit_per_host=80,
+    # verify_ssl=False
+)
+
 class PageViews():
     API_BASE_URL = "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/"
-    API_REQ_LIMIT = 200
+    API_REQ_LIMIT = 50
+
+    headers = headers = {
+        "User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"
+    }
+    results = []
+    REQ_URLS = []
+
+    MAX_CHUNK_LENGTH = 100
+    RETRY_COUNT = 3
     
     # VALID VALUES 
     PROJECT_VALUES = ['en.wikipedia.org', 'cs.wikipedia.org', 'sk.wikipedia.org']
@@ -64,8 +79,10 @@ class PageViews():
 
     async def __get_async_requests(self, url:str, limit):
         async with limit:
-            async with aiohttp.ClientSession() as session:
-                req = await session.get(url)
+            conn = aiohttp.TCPConnector(limit=5, family=socket.AF_INET, limit_per_host=5, force_close=True)
+            async with aiohttp.ClientSession(connector=conn, trust_env=True) as session:
+                print(f"Requesting {url}")
+                req = await session.get(url, headers=self.headers)
                 if limit.locked():
                     await asyncio.sleep(1)
                 return req
@@ -81,16 +98,14 @@ class PageViews():
         limit = asyncio.Semaphore(self.API_REQ_LIMIT)
         self.results = []
         async with aiohttp.ClientSession() as session:
-                print("Generating tasks")
                 tasks = self.__get_tasks(limit)
-                print("Running tasks")
                 responses = await asyncio.gather(*tasks)
-                print("Collecting responses")
                 for response in responses:
                     self.results.append(await response.json())
 
+    # Counts views and writes them to output file
     def __process_data(self, output_file:str):  
-        with open(output_file, "w") as out_file:
+        with open(output_file, "a") as out_file:
             for result in self.results:
                 result = result["items"]
                 article_name = result[0]["article"]
@@ -98,10 +113,10 @@ class PageViews():
                 for entry in result:
                     views_count += int(entry["views"])
                 out_file.write(f"{article_name}\t{views_count}\n")
+        self.results.clear()
 
 
-    ## Returns the number of views for the input article in a given time period
-    ## else False (if article DOES NOT EXIST) 
+    ## Gets pageviews from api, writes results to output file
     def get_page_views(
         self, 
         input_file:str, 
@@ -120,19 +135,42 @@ class PageViews():
 
         self.__check_input_file(input_file)  
 
-        # Load input file, generate URLs
         print("Loading file, generating urls")
         with open(input_file) as in_file:
-            self.REQ_URLS = []
+            self.REQ_URLS.clear()
+            line_counter = 0
+            chunk_counter = 1
             for line in in_file:
+                if line_counter % self.MAX_CHUNK_LENGTH == 0 and line_counter != 0:
+                    #print(f"Processing chunk {chunk_counter}", end="\r")
+                    asyncio.run(self.__run_requests())
+                    # try:    
+                    #     asyncio.run(self.__run_requests())
+                    # except:   
+                    #     # Try again
+                    #     print("Exception occurred, trying again")
+                    #     for try_num in range(self.RETRY_COUNT):
+                    #         #time.sleep(60*(try_num+1))
+                    #         self.results.clear()
+                    #         asyncio.run(self.__run_requests())
+                    #     # if try_num == self.RETRY_COUNT - 1:
+                        #     sys.stderr.write("Failed to download")
+                        #     exit(1)
+                            
+                    self.__process_data(output_file)
+                    self.REQ_URLS.clear()
+                    chunk_counter += 1
+
                 article_name = line.strip()
                 REQ_URL = self.API_BASE_URL + f"{project_name}/{access_type}/{agent_type}/{article_name}/{granularity}/{start_time}/{end_time}"
                 self.REQ_URLS.append(REQ_URL)
-        
+                line_counter += 1
+            
+            # Process the rest
+            asyncio.run(self.__run_requests())
+            self.__process_data(output_file)
 
-        asyncio.run(self.__run_requests())
-
-        self.__process_data(output_file)
+        print(f"Finished processing {line_counter} articles")
     
     def parse_args(self):
         parser = argparse.ArgumentParser()
