@@ -14,14 +14,9 @@ import sys
 import re
 import os
 
-connector = aiohttp.TCPConnector(
-    # limit_per_host=80,
-    # verify_ssl=False
-)
-
 class PageViews():
     API_BASE_URL = "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/"
-    API_REQ_LIMIT = 50
+    API_REQ_LIMIT = 80
 
     headers = headers = {
         "User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"
@@ -29,8 +24,9 @@ class PageViews():
     results = []
     REQ_URLS = []
 
-    MAX_CHUNK_LENGTH = 100
+    DELAY = 0.5
     RETRY_COUNT = 3
+    TIMEOUT = 50
     
     # VALID VALUES 
     PROJECT_VALUES = ['en.wikipedia.org', 'cs.wikipedia.org', 'sk.wikipedia.org']
@@ -47,7 +43,8 @@ class PageViews():
     def __check_input_file(self, input_file:str):
         if not os.path.exists(input_file):
             sys.stderr.write("Cannot find input file\n")
-            exit(1)  
+            exit(1)
+        
 
     ## Checks api request values
     ## (Can be turned off by CHECK_VALUES = False)
@@ -77,30 +74,24 @@ class PageViews():
             sys.stderr.write("ERROR: Time range error\n")
             raise Exception("Time range error") 
 
-    async def __get_async_requests(self, url:str, limit):
-        async with limit:
-            conn = aiohttp.TCPConnector(limit=5, family=socket.AF_INET, limit_per_host=5, force_close=True)
-            async with aiohttp.ClientSession(connector=conn, trust_env=True) as session:
-                req = await session.get(url, headers=self.headers)
-                if limit.locked():
-                    await asyncio.sleep(1)
-                return req
-    
-    def __get_tasks(self, limit):
-        tasks = []
-        for url in self.REQ_URLS:
-            tasks.append(self.__get_async_requests(url, limit))
-        return tasks            
-        
-
-    async def __run_requests(self):
-        limit = asyncio.Semaphore(self.API_REQ_LIMIT)
-        self.results = []
+    async def __make_requests(self):
         async with aiohttp.ClientSession() as session:
-                tasks = self.__get_tasks(limit)
-                responses = await asyncio.gather(*tasks)
-                for response in responses:
-                    self.results.append(await response.json())
+            for url in self.REQ_URLS:
+                async with session.get(url) as req:
+                    self.results.append(await req.json())
+    
+    async def __run_requests(self, timeout=TIMEOUT):
+        task = self.__make_requests()
+        await asyncio.wait_for(task, timeout)          
+        
+    def __fetch_api(self):
+        try:
+            asyncio.run(self.__run_requests())
+        except asyncio.exceptions.TimeoutError:
+            print("TIMEOUT")
+        except Exception as e:
+            print(e)
+            exit(1)
 
     # Counts views and writes them to output file
     def __process_data(self, output_file:str):  
@@ -138,36 +129,30 @@ class PageViews():
         with open(input_file) as in_file:
             self.REQ_URLS.clear()
             line_counter = 0
-            chunk_counter = 1
+            chunk_counter = 0
             for line in in_file:
-                if line_counter % self.MAX_CHUNK_LENGTH == 0 and line_counter != 0:
-                    print(f"Processing chunk {chunk_counter}", end="\r")
-                    asyncio.run(self.__run_requests())
-                    # try:    
-                    #     asyncio.run(self.__run_requests())
-                    # except:   
-                    #     # Try again
-                    #     print("Exception occurred, trying again")
-                    #     for try_num in range(self.RETRY_COUNT):
-                    #         #time.sleep(60*(try_num+1))
-                    #         self.results.clear()
-                    #         asyncio.run(self.__run_requests())
-                    #     # if try_num == self.RETRY_COUNT - 1:
-                        #     sys.stderr.write("Failed to download")
-                        #     exit(1)
-                            
-                    self.__process_data(output_file)
-                    self.REQ_URLS.clear()
-                    chunk_counter += 1
-
                 article_name = line.strip()
                 REQ_URL = self.API_BASE_URL + f"{project_name}/{access_type}/{agent_type}/{article_name}/{granularity}/{start_time}/{end_time}"
                 self.REQ_URLS.append(REQ_URL)
                 line_counter += 1
+
+                if len(self.REQ_URLS) == self.API_REQ_LIMIT:
+                    chunk_counter += 1
+                    print(f"Fetching chunk: {chunk_counter}, count: {line_counter}",end="\r")
+                    self.__fetch_api()
+                    self.__process_data(output_file)
+                                        
+                    self.results.clear()
+                    self.REQ_URLS.clear()
+                    time.sleep(self.DELAY)
             
             # Process the rest
-            asyncio.run(self.__run_requests())
+            self.__fetch_api()
             self.__process_data(output_file)
+
+            # Cleanup
+            self.REQ_URLS.clear()
+            self.results.clear()
 
         print(f"Finished processing {line_counter} articles")
     

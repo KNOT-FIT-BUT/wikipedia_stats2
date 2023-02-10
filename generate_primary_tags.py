@@ -5,11 +5,12 @@
 ############################################
 
 import argparse
+import time
 import csv
 import sys
 import os
 
-
+csv.field_size_limit(sys.maxsize)
 io_parser = argparse.ArgumentParser()
 
 io_parser.add_argument(
@@ -35,6 +36,11 @@ args = io_parser.parse_args()
 input_file = args.input_file
 output_file = args.output_file
 
+
+if not input_file.endswith(".tsv"):
+    print("WARNING: Input file might not be in correct format (wanted: .tsv)\n")
+
+
 if not os.path.exists(input_file):
     sys.stderr.write("ERROR: Input file not found\n")
     exit(1)
@@ -42,6 +48,8 @@ if not os.path.exists(input_file):
 if os.path.exists(output_file):
     sys.stderr.write(f"ERROR: Output file '{output_file}' already exists\n")
     exit(1)
+
+start_time = time.time()
 
 print("Starting")
 with open(input_file) as file_in, open(output_file, "w") as file_out:
@@ -61,5 +69,6 @@ with open(input_file) as file_in, open(output_file, "w") as file_out:
                 file_out.write(f"{article_name}\t1\n")
             val_counter += 1
 
+time_taken = int(time.time() - start_time)
 print("Finished.")
-print(f"Added {val_counter} values")
+print(f"Generated {val_counter} values, in {time_taken} seconds")

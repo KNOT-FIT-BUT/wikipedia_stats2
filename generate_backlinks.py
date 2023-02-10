@@ -5,12 +5,10 @@
 ############################################
 
 import argparse
-import csv
 import sys
 import os
 import re
 import time
-import json
 
 SEARCH_PATTERN = r"\[\[(?!:?\w+:)(?!#)(?!.*\(disambiguation\))(.+?)(?:(?:\||#).*?)?\]\]"
 reg = re.compile(SEARCH_PATTERN)
@@ -40,6 +38,10 @@ args = io_parser.parse_args()
 input_file = args.input_file
 output_file = args.output_file
 
+
+if not input_file.endswith(".xml"):
+    print("WARNING: Input file might not be in correct format (wanted: XML)\n")
+
 if not os.path.exists(input_file):
     sys.stderr.write("ERROR: Input file not found\n")
     exit(1)
@@ -49,10 +51,11 @@ if os.path.exists(output_file):
     exit(1)
 
 
-
+print("Starting")
 start_time = time.time()
 
 bl_data = {}
+val_counter = 0
 with open(input_file) as dump_file:
     for line in dump_file:
         match = reg.match(line)
@@ -62,6 +65,7 @@ with open(input_file) as dump_file:
                 bl_data[a_name] = 1
             else:
                 bl_data[a_name] += 1
+            val_counter += 1
 
 with open(output_file, "w") as out_file:
     for key, value in bl_data.items():
@@ -69,5 +73,6 @@ with open(output_file, "w") as out_file:
 
 
 
-time_taken = time.time() - start_time
-print(f"It took {time_taken} seconds")
+time_taken = int(time.time() - start_time)
+print("Finished.")
+print(f"Generated {val_counter} values, in {time_taken} seconds")
