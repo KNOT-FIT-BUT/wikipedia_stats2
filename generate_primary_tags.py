@@ -1,3 +1,9 @@
+############################################
+# Title:  generate_primary_tags.py         #
+# Author: Jakub Štětina                    #
+# Date:   7 Feb 2023                       #
+############################################
+
 import argparse
 import csv
 import sys
