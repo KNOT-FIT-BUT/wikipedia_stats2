@@ -81,7 +81,6 @@ class PageViews():
         async with limit:
             conn = aiohttp.TCPConnector(limit=5, family=socket.AF_INET, limit_per_host=5, force_close=True)
             async with aiohttp.ClientSession(connector=conn, trust_env=True) as session:
-                print(f"Requesting {url}")
                 req = await session.get(url, headers=self.headers)
                 if limit.locked():
                     await asyncio.sleep(1)
