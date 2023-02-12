@@ -16,7 +16,7 @@ import os
 
 class PageViews():
     API_BASE_URL = "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/"
-    API_REQ_LIMIT = 80
+    API_REQ_LIMIT = 100
 
     headers = headers = {
         "User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"
@@ -97,12 +97,18 @@ class PageViews():
     def __process_data(self, output_file:str):  
         with open(output_file, "a") as out_file:
             for result in self.results:
-                result = result["items"]
-                article_name = result[0]["article"]
-                views_count = 0
-                for entry in result:
-                    views_count += int(entry["views"])
-                out_file.write(f"{article_name}\t{views_count}\n")
+                try:
+                    result = result["items"]
+                    article_name = result[0]["article"]
+                    views_count = 0
+                    for entry in result:
+                        views_count += int(entry["views"])
+                    out_file.write(f"{article_name}\t{views_count}\n")
+                except KeyError:
+                    out_file.write(f"{article_name}\tNF\n")
+                    sys.stderr.write(f"{article_name} NOT FOUND\n")
+                except Exception as e:
+                    sys.stderr.write(f"ERROR: {e}\n")
         self.results.clear()
 
 
@@ -204,7 +210,6 @@ class PageViews():
         ## Agent
         parser.add_argument(
             "--agent", 
-            type = str, 
             choices=self.AGENT_VALUES,
             action="store",
             dest="agent_type",
@@ -264,3 +269,4 @@ if __name__ == "__main__":
 
 
 
+############################################
