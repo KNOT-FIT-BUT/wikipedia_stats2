@@ -1,8 +1,8 @@
-############################################
-# Title:  generate_pageviews.py            #
-# Author: Jakub Štětina                    #
-# Date:   9 Feb 2023                       #
-############################################
+####################################################
+# Title:  generate_primary_tags.py                 #
+# Author: Jakub Štětina <xsteti05@stud.fit.vut.cz> #
+# Date:   9 Feb 2023                               #
+####################################################
 
 import argparse
 import asyncio

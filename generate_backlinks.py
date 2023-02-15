@@ -1,8 +1,8 @@
-############################################
-# Title:  generate_backlinks.py            #
-# Author: Jakub Štětina                    #
-# Date:   8 Feb 2023                       #
-############################################
+####################################################
+# Title:  generate_primary_tags.py                 #
+# Author: Jakub Štětina <xsteti05@stud.fit.vut.cz> #
+# Date:   7 Feb 2023                               #
+####################################################
 
 import argparse
 import sys
