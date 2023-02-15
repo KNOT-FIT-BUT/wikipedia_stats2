@@ -80,7 +80,7 @@ with open(bl_file) as bl_in, open(pw_file) as pw_in, open(pr_file) as pr_in:
                 continue
 
             if art_name not in out_data:
-                out_data[art_name] = [0, 0, 0]
+                out_data[art_name] = ["NF", "NF", "NF"]
             out_data[art_name][idx] = count
 
 print("Saving data..")
