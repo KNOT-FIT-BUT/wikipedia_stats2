@@ -1,12 +1,6 @@
-documentation/
+docs/
 test.py
 test_playground/
-<<<<<<< HEAD
 __pycache__/
-KB/
 dumps/
-=======
-KB/
-test_playground/
->>>>>>> pageviews_script
 output/
