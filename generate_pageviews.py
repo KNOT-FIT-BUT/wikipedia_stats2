@@ -157,6 +157,8 @@ class PageViews():
             with open(f"{self.OUTPUT_DIR}/{prj}_{out_file_name}", "w") as file_out:
                 for article_name, pw_count in values.items():
                     file_out.write(f"{article_name}\t{pw_count}\n")
+        print("Removing tmp files")
+        subprocess.run(f"rm {self.TMP_DIR}/*", shell=True)
     
     def __dwnld_files(self):
         skipped_files = []
