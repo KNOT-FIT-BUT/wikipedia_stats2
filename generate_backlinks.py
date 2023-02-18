@@ -1,5 +1,5 @@
 ####################################################
-# Title:  generate_primary_tags.py                 #
+# Title:  generate_backlinks.py                    #
 # Author: Jakub Štětina <xsteti05@stud.fit.vut.cz> #
 # Date:   7 Feb 2023                               #
 ####################################################
