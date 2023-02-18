@@ -176,7 +176,7 @@ class PageViews():
                 if (i+1) % 24 == 0:
                     print("Processing files..")
                     out_file_name = "-".join(file_name.split("-")[:2]) + ".tsv"
-                    self.__process_files(out_file_name) 
+                    self.__prcs_files(out_file_name) 
         print("Download finished.")
         print(f"Skipped files: {len(skipped_files)}")
 
