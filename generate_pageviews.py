@@ -1,272 +1,259 @@
 ####################################################
-# Title:  generate_primary_tags.py                 #
+# Title:  generate_pageviews.py                    #
 # Author: Jakub Štětina <xsteti05@stud.fit.vut.cz> #
-# Date:   9 Feb 2023                               #
+# Date:   18 Feb 2023                              #
 ####################################################
 
+from datetime import datetime, timedelta
+import pandas as pd
+import subprocess
 import argparse
-import asyncio
-import aiohttp
-import socket
-import time
-import json
-import sys
 import re
+import sys
 import os
 
 class PageViews():
-    API_BASE_URL = "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/"
-    API_REQ_LIMIT = 100
+    WM_DUMP_BASE_URL = "https://dumps.wikimedia.org/other/pageviews"
 
-    headers = headers = {
-        "User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"
-    }
-    results = []
-    REQ_URLS = []
+    REGEX = "(?!.*:)(.*?) (\d+) 0$"
+    PROJECTS = ["en", "cs", "sk"]
 
-    DELAY = 0.5
-    RETRY_COUNT = 3
-    TIMEOUT = 50
+    TMP_DIR = "tmp"
+    OUTPUT_DIR = "pageviews"
+
+    CORRECT_DATE_FORMAT = r"^\d{4}-\d{2}-\d{2}$"
+    START_DATE_MINIMUM = datetime(2015, 5, 1)
+
+    START_DATE = ""
+    END_DATE = ""
+
+    def __init__(
+        self,
+        start_date:str,
+        end_date:str, 
+        tmp_dir:str=TMP_DIR,
+        output_dir:str=OUTPUT_DIR,
+        projects:list=PROJECTS
+    ):
+        self.START_DATE = start_date
+        self.END_DATE = end_date
+        self.__check_date_range()
+
+
+        self.__check_dirs()
+        self.TMP_DIR = tmp_dir
+        self.OUTPUT_DIR = output_dir
+        self.PROJECTS = projects
+
+        self.REGEX_DICT =  {prj:f"^{prj} {self.REGEX}" for prj in projects}
+        
+        self.__get_dwnld_data()
     
-    # VALID VALUES 
-    PROJECT_VALUES = ['en.wikipedia.org', 'cs.wikipedia.org', 'sk.wikipedia.org']
-    ACCESS_VALUES = ["all-access", "desktop", "mobile-app", "mobile-web"]
-    AGENT_VALUES = ["all-agents", "user", "spider", "automated"]
-    GRANULARITY_VALUES = ["daily", "monthly"]
-    TIMESTAMP_REGX = "^\d{8}(?:\d{2})?$"
-    LOWEST_TIMESTAMP = "20150701" # No data before this date
+    def __check_date_range(self):
+        if  (not re.match(self.CORRECT_DATE_FORMAT, self.START_DATE) or
+            not re.match(self.CORRECT_DATE_FORMAT, self.END_DATE)):
 
-    def __init__(self, check_values:bool=True, rate_limit=API_REQ_LIMIT):
-        self.CHECK_VALUES = check_values
-        self.API_REQ_LIMIT = rate_limit
+            sys.stderr.write("ERROR: Date format incorrect, expected YYYY-MM-DD\n")
+            exit(1)
 
-    def __check_input_file(self, input_file:str):
-        if not os.path.exists(input_file):
-            sys.stderr.write("Cannot find input file\n")
+        try:
+            start_year = int(self.START_DATE.split("-")[0])
+            start_month = int(self.START_DATE.split("-")[1])
+            start_day = int(self.START_DATE.split("-")[2])
+
+            end_year = int(self.END_DATE.split("-")[0])
+            end_month = int(self.END_DATE.split("-")[1])
+            end_day = int(self.END_DATE.split("-")[2])
+        except IndexError:
+            sys.stderr.write("ERROR: Date format incorrect, expected YYYY-MM-DD\n")
+            exit(1)
+
+        except ValueError:
+            sys.stderr.write("ERROR: Unwanted characters in date, expected, YYYY-MM-DD\n")
+            exit(1)
+        try:
+            start_date = datetime(start_year, start_month, start_day)
+            end_date = datetime(end_year, end_month, end_day)
+        except ValueError:
+            sys.stderr.write("ERROR: Date value out of range\n")
+            exit(1)
+
+        if start_date > end_date:
+            sys.stderr.write("ERROR: Date range error\n")
+            exit(1)
+
+        if start_date < self.START_DATE_MINIMUM:
+            sys.stderr.write("ERROR: Start date too low, minimum: 2015-05-01\n")
             exit(1)
         
+        if end_date > datetime.now():
+            sys.stderr.write("ERROR: End date is in the future\n")
+            exit(1)
 
-    ## Checks api request values
-    ## (Can be turned off by CHECK_VALUES = False)
-    def __check_values(self,values):
-        if values["project_name"] not in self.PROJECT_VALUES:
-            sys.stderr.write("ERROR: Invalid project name\n")
-            raise Exception("Invalid Project name")
-        
-        if values["access_type"] not in self.ACCESS_VALUES:
-            sys.stderr.write("ERROR: Invalid access type\n")
-            raise Exception("Invaid access type")
-        
-        if values["agent_type"] not in self.AGENT_VALUES:
-            sys.stderr.write("ERROR: Invalid agent type\n")
-            raise Exception("Invalid agent type")
-        
-        if values["granularity"] not in self.GRANULARITY_VALUES:
-            sys.stderr.write("ERROR: Invalid granularity value\n")
-            raise Exception("Invalid granularity value")
-        
-        if (not re.match(self.TIMESTAMP_REGX, values["start_time"]) or
-            not re.match(self.TIMESTAMP_REGX, values["end_time"])):
-            sys.stderr.write("ERROR: Incorrect time value\n")
-            raise Exception("Incorrect time value")
-        
-        if int(values["start_time"]) > int(values["end_time"]):
-            sys.stderr.write("ERROR: Time range error\n")
-            raise Exception("Time range error") 
-
-    async def __make_requests(self):
-        async with aiohttp.ClientSession() as session:
-            for url in self.REQ_URLS:
-                async with session.get(url) as req:
-                    self.results.append(await req.json())
-    
-    async def __run_requests(self, timeout=TIMEOUT):
-        task = self.__make_requests()
-        await asyncio.wait_for(task, timeout)          
-        
-    def __fetch_api(self):
         try:
-            asyncio.run(self.__run_requests())
-        except asyncio.exceptions.TimeoutError:
-            print("TIMEOUT")
+             self.DATE_RANGE = pd.date_range(self.START_DATE, self.END_DATE)
         except Exception as e:
             print(e)
             exit(1)
 
-    # Counts views and writes them to output file
-    def __process_data(self, output_file:str):  
-        with open(output_file, "a") as out_file:
-            for result in self.results:
-                try:
-                    result = result["items"]
-                    article_name = result[0]["article"]
-                    views_count = 0
-                    for entry in result:
-                        views_count += int(entry["views"])
-                    out_file.write(f"{article_name}\t{views_count}\n")
-                except KeyError:
-                    out_file.write(f"{article_name}\tNF\n")
-                    sys.stderr.write(f"{article_name} NOT FOUND\n")
-                except Exception as e:
-                    sys.stderr.write(f"ERROR: {e}\n")
-        self.results.clear()
-
-
-    ## Gets pageviews from api, writes results to output file
-    def get_page_views(
-        self, 
-        input_file:str, 
-        output_file:str,
-        project_name:str="en.wikipedia.org",
-        access_type:str="all-access", 
-        agent_type:str="all-agents", 
-        granularity:str="monthly", 
-        start_time:str=LOWEST_TIMESTAMP, 
-        end_time:str=time.strftime('%Y%m%d%H', time.localtime(time.time())) # Current time
-        ):
+    def __check_dirs(self):
+        if not os.path.exists(self.TMP_DIR):
+            print("Tmp dir does not exist, creating")
+            os.mkdir(self.TMP_DIR)
         
+        if not os.path.exists(self.OUTPUT_DIR):
+            print("Output dir does not exist, creating")
+            os.mkdir(self.OUTPUT_DIR)
 
-        if self.CHECK_VALUES:
-            self.__check_values(locals())
-
-        self.__check_input_file(input_file)  
-
-        print("Loading file, generating urls")
-        with open(input_file) as in_file:
-            self.REQ_URLS.clear()
-            line_counter = 0
-            chunk_counter = 0
-            for line in in_file:
-                article_name = line.strip()
-                REQ_URL = self.API_BASE_URL + f"{project_name}/{access_type}/{agent_type}/{article_name}/{granularity}/{start_time}/{end_time}"
-                self.REQ_URLS.append(REQ_URL)
-                line_counter += 1
-
-                if len(self.REQ_URLS) == self.API_REQ_LIMIT:
-                    chunk_counter += 1
-                    print(f"Fetching chunk: {chunk_counter}, count: {line_counter}",end="\r")
-                    self.__fetch_api()
-                    self.__process_data(output_file)
-                                        
-                    self.results.clear()
-                    self.REQ_URLS.clear()
-                    time.sleep(self.DELAY)
+    def __get_dwnld_data(self):
+        self.dwnld_data = {}
+        
+        for value in self.DATE_RANGE:
+            year = value.year
+            month = value.month
+            day = value.day
+            year_month = f"{year}/{year}-{str(month).zfill(2)}"
             
-            # Process the rest
-            self.__fetch_api()
-            self.__process_data(output_file)
+            if not year_month in self.dwnld_data:
+                self.dwnld_data[year_month] = []
 
-            # Cleanup
-            self.REQ_URLS.clear()
-            self.results.clear()
+            for hour in range(0, 23+1):
+                month = str(month).zfill(2)
+                day = str(day).zfill(2)
+                hour = str(hour).zfill(2)
 
-        print(f"Finished processing {line_counter} articles")
+                file_name = f"pageviews-{year}{month}{day}-{hour}0000.gz"
+                self.dwnld_data[year_month].append(file_name)
     
-    def parse_args(self):
-        parser = argparse.ArgumentParser()
-
-        # ARGUMENTS
-        ## Article name
-        parser.add_argument(
-            "-i","--input", 
-            type = str, 
-            required=True,
-            action="store",
-            dest="input_file",
-            help = "Valid article name",
-        )
-
-        parser.add_argument(
-            "-o","--output", 
-            type = str, 
-            required=True,
-            action="store",
-            dest="output_file",
-            help = "Valid article name",
-        )
-
-        ## Project name 
-        parser.add_argument(
-            "-p","--project", 
-            type = str, 
-            choices=self.PROJECT_VALUES,
-            action="store",
-            dest="project_name",
-            help = "Project name (en.wikipedia, cs.wikipedia, ...)",
-            default = "en.wikipedia.org"
-        )
-
-        ## Access 
-        parser.add_argument(
-            "--access", 
-            type = str, 
-            choices=self.ACCESS_VALUES,
-            action="store",
-            dest="access_type",
-            help = "Access type (all-access, desktop, mobile-app, mobile-web)",
-            default = "all-access"
-        )
-
-        ## Agent
-        parser.add_argument(
-            "--agent", 
-            choices=self.AGENT_VALUES,
-            action="store",
-            dest="agent_type",
-            help = "Access agent (all-agents, user, spider, automated)",
-            default = "all-agents"
-        )
-
-        ## Granulatity
-        parser.add_argument(
-            "--granularity", 
-            type = str, 
-            choices=self.GRANULARITY_VALUES,
-            action="store",
-            dest="granularity",
-            help = "Entries granularity (daily, monthly)",
-            default = "monthly"
-        )
-
-        ## Start timestamp
-        parser.add_argument(
-            "-s","--start", 
-            type = str, 
-            action="store",
-            dest="start_time", 
-            help = "Start timestamp: YYYYMMDD(HH)",
-            default=self.LOWEST_TIMESTAMP 
-        )
-
-        ## End timestamp
-        parser.add_argument(
-            "-e","--end", 
-            type = str, 
-            action="store",
-            dest="end_time",
-            help = "End timestamp: YYYYMMDD(HH)",
-            default = time.strftime('%Y%m%d%H', time.localtime(time.time())) # Current time
-        )
-
-        return parser.parse_args()
+    def __prcs_files(self, out_file_name:str):
+        print("Unzipping files")
+        prcs = subprocess.run(f"gunzip {self.TMP_DIR}/*.gz --force", shell=True)
+        if prcs.returncode != 0:
+            sys.stderr.write("FAILED TO UNZIP FILES")
+            exit(1)
         
-# Run as standalone script
-if __name__ == "__main__":   
-    pw = PageViews(check_values=False)
-    
-    args = pw.parse_args()
+        print("Unzipped. ")
 
-    pw_count = pw.get_page_views(
-        input_file = args.input_file,
-        output_file = args.output_file,
-        project_name = args.project_name,
-        access_type = args.access_type,
-        agent_type = args.agent_type,
-        granularity = args.granularity,
-        start_time = args.start_time,
-        end_time = args.end_time
+        files = sorted(os.listdir(self.TMP_DIR))
+
+        data = {}
+        for file_name in files:
+            print(f"Extracting data: {file_name}")
+            with open(f"{self.TMP_DIR}/{file_name}") as file_in:
+                for line in file_in:
+                    line = line.strip()
+                    for prj, reg in self.REGEX_DICT.items():
+                        if not prj in data:
+                            data[prj] = {}
+                        match = re.match(reg, line)
+                        if match:
+                            article_name = match.group(1)
+                            page_count = int(match.group(2))
+                            if not article_name in data[prj]:
+                                data[prj][article_name] = 0
+                            data[prj][article_name] += page_count
+        print(f"Saving file:     ")
+        for prj, values in data.items():
+            with open(f"{self.OUTPUT_DIR}/{prj}_{out_file_name}", "w") as file_out:
+                for article_name, pw_count in values.items():
+                    file_out.write(f"{article_name}\t{pw_count}\n")
+    
+    def __dwnld_files(self):
+        skipped_files = []
+        for year_month in self.dwnld_data:
+            for i, file_name in enumerate(self.dwnld_data[year_month]):  
+
+                dwnld_link =  f"{self.WM_DUMP_BASE_URL}/{year_month}/{file_name}"
+                print(f"Num: {i+1}, Downloading {file_name}")
+
+                prcs = subprocess.run(f"wget \"{dwnld_link}\" -O {self.TMP_DIR}/{file_name} --quiet", shell=True)
+                if prcs.returncode != 0:
+                    skipped_files.append(dwnld_link)
+                    print(f"Warning: Skipped file: {dwnld_link}")
+                    os.remove(f"{self.TMP_DIR}/{file_name}")
+                
+
+                if (i+1) % 24 == 0:
+                    print("Processing files..")
+                    out_file_name = "-".join(file_name.split("-")[:2]) + ".tsv"
+                    self.__process_files(out_file_name) 
+        print("Download finished.")
+        print(f"Skipped files: {len(skipped_files)}")
+
+    def get_pageviews(self):
+        self.__dwnld_files()
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    
+    parser.add_argument(
+        "-s", "--start", 
+        type=str,
+        required=True,
+        action="store", 
+        dest="start_date",
+        help="Start date (YYYY-MM-DD)"
     )
 
+    parser.add_argument(
+        "-e", "--end", 
+        type=str,
+        required=True,
+        action="store", 
+        dest="end_date",
+        help="End date (YYYY-MM-DD)"
+    )
+
+    parser.add_argument(
+        "-o", "--output", 
+        type=str,
+        required=False,
+        action="store", 
+        dest="out_dir",
+        help="Output dir"
+    )
+
+    parser.add_argument(
+        "--tmp", 
+        type=str,
+        required=False,
+        action="store", 
+        dest="tmp_dir",
+        help="Temp dir for (for storing unprocessed data)"
+    )
+
+    parser.add_argument(
+        "--projects", 
+        required=False,
+        nargs="+",
+        action="store",
+        dest="prj_list",
+        help="List of projects",
+    )
+    args = parser.parse_args()
 
 
-############################################
+    start_date = args.start_date
+    end_date = args.end_date
+    
+    # Deafults
+    out_dir = "pageviews"
+    tmp_dir = "tmp"
+    prj_list = ["en", "cs", "sk"]
+
+    if args.out_dir:
+        out_dir = args.out_dir
+    if args.tmp_dir:
+        tmp_dir = args.tmp_dir
+    if args.prj_list:
+        prj_list = args.prj_list
+
+    pw = PageViews(
+        start_date=start_date, 
+        end_date=end_date,
+        tmp_dir=tmp_dir,
+        output_dir=out_dir,
+        projects=prj_list
+    )
+    pw.get_pageviews()
+   
