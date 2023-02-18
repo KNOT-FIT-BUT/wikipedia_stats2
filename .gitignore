@@ -3,4 +3,6 @@ test.py
 test_playground/
 __pycache__/
 dumps/
+tmp/
+pageviews/
 output/
