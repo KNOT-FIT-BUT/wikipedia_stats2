@@ -29,24 +29,26 @@ class Backlinks():
 
     def __check_input_output(self):
         if not self.INPUT_FILE.endswith(".xml"):
-            print("WARNING: Input file might not be in correct format (wanted: XML)\n")
+            logging.warning("WARNING: Input file might not be in correct format (wanted: XML)")
 
         if not os.path.exists(self.INPUT_FILE):
-            sys.stderr.write("ERROR: Input file not found\n")
+            logging.error("ERROR: Input file not found")
             exit(1)
 
         if os.path.exists(self.OUTPUT_FILE):
-            sys.stderr.write(f"ERROR: Output file '{self.OUTPUT_FILE}' already exists\n")
+            logging.error(f"ERROR: Output file '{self.OUTPUT_FILE}' already exists")
             exit(1)
 
     def __save_to_file(self):
+        logging.info("Saving..")
         with open(self.OUTPUT_FILE, "w") as out_file:
             for key, value in self.BL_DATA.items():
                 out_file.write(f"{key}\t{value}\n")
-
+        logging.info("Saved.")
 
     def generate_backlinks(self):
         val_counter = 0
+        logging.info("Generating backlinks..")
         with open(input_file) as dump_file:
             for line in dump_file:
                 match = self.REGEX.match(line)
@@ -57,8 +59,9 @@ class Backlinks():
                     else:
                         self.BL_DATA[a_name] += 1
                     val_counter += 1
-                    
+        logging.info("Generation complete.")
         self.__save_to_file()
+        logging.info(f"Generated {val_counter} values.")
         return val_counter
 
 
@@ -100,5 +103,7 @@ if __name__ == "__main__":
     input_file = args.input_file
     output_file = args.output_file
 
+    logging.info("Starting")
     bl = Backlinks(input_file=input_file, output_file=output_file)
     bl.generate_backlinks()
+    logging.info("Finished.")
