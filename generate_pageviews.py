@@ -25,6 +25,8 @@ class PageViews():
     TMP_DIR = "tmp"
     OUTPUT_DIR = "pageviews"
 
+    DWNLD_TRIES = 3
+
     CORRECT_DATE_FORMAT = r"^\d{4}-\d{2}-\d{2}$"
     START_DATE_MINIMUM = datetime(2015, 5, 1)
 
@@ -57,7 +59,7 @@ class PageViews():
         if  (not re.match(self.CORRECT_DATE_FORMAT, self.START_DATE) or
             not re.match(self.CORRECT_DATE_FORMAT, self.END_DATE)):
 
-            sys.stderr.write("ERROR: Date format incorrect, expected YYYY-MM-DD\n")
+            logging.error("ERROR: Date format incorrect, expected YYYY-MM-DD")
             exit(1)
 
         try:
@@ -69,48 +71,48 @@ class PageViews():
             end_month = int(self.END_DATE.split("-")[1])
             end_day = int(self.END_DATE.split("-")[2])
         except IndexError:
-            sys.stderr.write("ERROR: Date format incorrect, expected YYYY-MM-DD\n")
+            logging.error("ERROR: Date format incorrect, expected YYYY-MM-DD")
             exit(1)
 
         except ValueError:
-            sys.stderr.write("ERROR: Unwanted characters in date, expected, YYYY-MM-DD\n")
+            logging.error("ERROR: Unwanted characters in date, expected, YYYY-MM-DD")
             exit(1)
         try:
             start_date = datetime(start_year, start_month, start_day)
             end_date = datetime(end_year, end_month, end_day)
         except ValueError:
-            sys.stderr.write("ERROR: Date value out of range\n")
+            logging.error("ERROR: Date value out of range")
             exit(1)
 
         if start_date > end_date:
-            sys.stderr.write("ERROR: Date range error\n")
+            logging.error("ERROR: Date range error")
             exit(1)
 
         if start_date < self.START_DATE_MINIMUM:
-            sys.stderr.write("ERROR: Start date too low, minimum: 2015-05-01\n")
+            logging.error("ERROR: Start date too low, minimum: 2015-05-01")
             exit(1)
         
         if end_date > datetime.now():
-            sys.stderr.write("ERROR: End date is in the future\n")
+            logging.error("ERROR: End date is in the future")
             exit(1)
 
         try:
              self.DATE_RANGE = pd.date_range(self.START_DATE, self.END_DATE)
         except Exception as e:
-            print(e)
+            logging.error(f"Exception: {e}")
             exit(1)
 
     def __check_dirs(self):
         if not os.path.exists(self.TMP_DIR):
-            print("Tmp dir does not exist, creating")
+            logging.warning("Tmp dir does not exist, creating..")
             os.mkdir(self.TMP_DIR)
         
         if not os.path.exists(self.OUTPUT_DIR):
-            print("Output dir does not exist, creating")
+            logging.warning("Output dir does not exist, creating..")
             os.mkdir(self.OUTPUT_DIR)
 
     def __get_dwnld_data(self):
-        self.dwnld_data = {}
+        self.DWNLD_DATA = {}
         
         for value in self.DATE_RANGE:
             year = value.year
@@ -118,8 +120,8 @@ class PageViews():
             day = value.day
             year_month = f"{year}/{year}-{str(month).zfill(2)}"
             
-            if not year_month in self.dwnld_data:
-                self.dwnld_data[year_month] = []
+            if not year_month in self.DWNLD_DATA:
+                self.DWNLD_DATA[year_month] = []
 
             for hour in range(0, 23+1):
                 month = str(month).zfill(2)
@@ -127,22 +129,22 @@ class PageViews():
                 hour = str(hour).zfill(2)
 
                 file_name = f"pageviews-{year}{month}{day}-{hour}0000.gz"
-                self.dwnld_data[year_month].append(file_name)
+                self.DWNLD_DATA[year_month].append(file_name)
     
     def __prcs_files(self, out_file_name:str):
-        print("Unzipping files")
+        logging.info("Unzipping files")
         prcs = subprocess.run(f"gunzip {self.TMP_DIR}/*.gz --force", shell=True)
         if prcs.returncode != 0:
             sys.stderr.write("FAILED TO UNZIP FILES")
             exit(1)
         
-        print("Unzipped. ")
+        logging.info("Unzipped.")
 
         files = sorted(os.listdir(self.TMP_DIR))
 
         data = {}
         for file_name in files:
-            print(f"Extracting data: {file_name}")
+            logging.info(f"Extracting data: {file_name}")
             with open(f"{self.TMP_DIR}/{file_name}") as file_in:
                 for line in file_in:
                     line = line.strip()
@@ -156,35 +158,41 @@ class PageViews():
                             if not article_name in data[prj]:
                                 data[prj][article_name] = 0
                             data[prj][article_name] += page_count
-        print(f"Saving file:     ")
+        logging.info("Saving..")
         for prj, values in data.items():
             with open(f"{self.OUTPUT_DIR}/{prj}_{out_file_name}", "w") as file_out:
                 for article_name, pw_count in values.items():
                     file_out.write(f"{article_name}\t{pw_count}\n")
-        print("Removing tmp files")
+        logging.debug("Removing tmp files")
         subprocess.run(f"rm {self.TMP_DIR}/*", shell=True)
     
     def __dwnld_files(self):
         skipped_files = []
         for year_month in self.dwnld_data:
             for i, file_name in enumerate(self.dwnld_data[year_month]):  
-
+                
                 dwnld_link =  f"{self.WM_DUMP_BASE_URL}/{year_month}/{file_name}"
-                print(f"Num: {i+1}, Downloading {file_name}")
+                logging.info(f"Num: {i+1}, Downloading {file_name}")
 
-                prcs = subprocess.run(f"wget \"{dwnld_link}\" -O {self.TMP_DIR}/{file_name} --quiet", shell=True)
-                if prcs.returncode != 0:
-                    skipped_files.append(dwnld_link)
-                    print(f"Warning: Skipped file: {dwnld_link}")
-                    os.remove(f"{self.TMP_DIR}/{file_name}")
+                for try_n in range(self.DWNLD_TRIES):
+                    prcs = subprocess.run(f"wget \"{dwnld_link}\" -O {self.TMP_DIR}/{file_name} --quiet", shell=True)
+                    if prcs.returncode == 0:
+                        break
+                    elif prcs.returncode != 0:
+                        logging.info(f"Download of {file_name} unsuccessful, trying again..")
+                    
+                    if prcs.returncode != 0 and try_n == self.DWNLD_TRIES - 1:
+                        skipped_files.append(dwnld_link)
+                        logging.warning(f"Warning: Skipped file: {dwnld_link}")
+                        os.remove(f"{self.TMP_DIR}/{file_name}")
                 
 
                 if (i+1) % 24 == 0:
-                    print("Processing files..")
+                    logging.info("Processing files..")
                     out_file_name = "-".join(file_name.split("-")[:2]) + ".tsv"
                     self.__prcs_files(out_file_name) 
-        print("Download finished.")
-        print(f"Skipped files: {len(skipped_files)}")
+        logging.info("Download finished.")
+        logging.warning(f"Skipped files: {skipped_files}")
 
     def get_pageviews(self):
         self.__dwnld_files()
