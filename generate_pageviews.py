@@ -13,6 +13,9 @@ import re
 import sys
 import os
 
+log_level = logging.INFO
+logging.basicConfig(level=log_level, format='%(message)s')
+
 class PageViews():
     WM_DUMP_BASE_URL = "https://dumps.wikimedia.org/other/pageviews"
 
