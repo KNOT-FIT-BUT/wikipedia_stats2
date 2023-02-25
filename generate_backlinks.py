@@ -5,74 +5,100 @@
 ####################################################
 
 import argparse
+import logging
 import sys
 import os
 import re
-import time
 
-SEARCH_PATTERN = r"\[\[(?!:?\w+:)(?!#)(?!.*\(disambiguation\))(.+?)(?:(?:\||#).*?)?\]\]"
-reg = re.compile(SEARCH_PATTERN)
+log_level = logging.INFO
+logging.basicConfig(level=log_level, format='%(message)s')
 
-io_parser = argparse.ArgumentParser()
+class Backlinks():
+    SEARCH_PATTERN = r"\[\[(?!:?\w+:)(?!#)(?!.*\(disambiguation\))(.+?)(?:(?:\||#).*?)?\]\]"
+    REGEX = re.compile(SEARCH_PATTERN)
 
-io_parser.add_argument(
-    "-i","--input", 
-    type = str, 
-    required=True,
-    action="store",
-    dest="input_file",
-    help = "Input file",
-)
+    BL_DATA = dict()
+    
+    def __init__(
+        self,
+        input_file:str,
+        output_file:str):
+        self.INPUT_FILE = input_file
+        self.OUTPUT_FILE = output_file
+        self.__check_input_output()
 
-io_parser.add_argument(
-    "-o","--output", 
-    type = str, 
-    required=True,
-    action="store",
-    dest="output_file",
-    help = "Output file",
-)
+    def __check_input_output(self):
+        if not self.INPUT_FILE.endswith(".xml"):
+            print("WARNING: Input file might not be in correct format (wanted: XML)\n")
 
-args = io_parser.parse_args()
+        if not os.path.exists(self.INPUT_FILE):
+            sys.stderr.write("ERROR: Input file not found\n")
+            exit(1)
 
-input_file = args.input_file
-output_file = args.output_file
+        if os.path.exists(self.OUTPUT_FILE):
+            sys.stderr.write(f"ERROR: Output file '{self.OUTPUT_FILE}' already exists\n")
+            exit(1)
 
-
-if not input_file.endswith(".xml"):
-    print("WARNING: Input file might not be in correct format (wanted: XML)\n")
-
-if not os.path.exists(input_file):
-    sys.stderr.write("ERROR: Input file not found\n")
-    exit(1)
-
-if os.path.exists(output_file):
-    sys.stderr.write(f"ERROR: Output file '{output_file}' already exists\n")
-    exit(1)
+    def __save_to_file(self):
+        with open(self.OUTPUT_FILE, "w") as out_file:
+            for key, value in self.BL_DATA.items():
+                out_file.write(f"{key}\t{value}\n")
 
 
-print("Starting")
-start_time = time.time()
-
-bl_data = {}
-val_counter = 0
-with open(input_file) as dump_file:
-    for line in dump_file:
-        match = reg.match(line)
-        if match:
-            a_name = match.group(1).replace(" ", "_")
-            if a_name not in bl_data:
-                bl_data[a_name] = 1
-            else:
-                bl_data[a_name] += 1
-            val_counter += 1
-
-with open(output_file, "w") as out_file:
-    for key, value in bl_data.items():
-        out_file.write(f"{key}\t{value}\n")
+    def generate_backlinks(self):
+        val_counter = 0
+        with open(input_file) as dump_file:
+            for line in dump_file:
+                match = self.REGEX.match(line)
+                if match:
+                    a_name = match.group(1).replace(" ", "_")
+                    if a_name not in self.BL_DATA:
+                        self.BL_DATA[a_name] = 1
+                    else:
+                        self.BL_DATA[a_name] += 1
+                    val_counter += 1
+                    
+        self.__save_to_file()
+        return val_counter
 
 
+if __name__ == "__main__":
+    io_parser = argparse.ArgumentParser()
 
-time_taken = int(time.time() - start_time)
-print("Finished.")
-print(f"Generated {val_counter} values, in {time_taken} seconds")
+    io_parser.add_argument(
+        "-i","--input", 
+        type = str, 
+        required=True,
+        action="store",
+        dest="input_file",
+        help = "Input file",
+    )
+
+    io_parser.add_argument(
+        "-o","--output", 
+        type = str, 
+        required=True,
+        action="store",
+        dest="output_file",
+        help = "Output file",
+    )
+
+    io_parser.add_argument(
+        "-q","--quiet", 
+        required=False,
+        dest="quiet",
+        help="Disable output"
+    )
+
+    args = io_parser.parse_args()
+
+    if args.quiet:
+        logging.basicConfig(level=logging.CRITICAL+1)
+
+    args = io_parser.parse_args()
+
+    input_file = args.input_file
+    output_file = args.output_file
+
+    bl = Backlinks(input_file=input_file, output_file=output_file)
+    bl.generate_backlinks()
