@@ -4,7 +4,8 @@
 # Date:   18 Feb 2023                              #
 ####################################################
 
-from datetime import datetime, timedelta
+from datetime import datetime
+import logging
 import pandas as pd
 import subprocess
 import argparse
@@ -232,6 +233,14 @@ if __name__ == "__main__":
         dest="prj_list",
         help="List of projects",
     )
+
+    parser.add_argument(
+        "--quiet", 
+        required=False,
+        action="store",
+        dest="quiet",
+        help="Disable output",
+    )
     args = parser.parse_args()
 
 
@@ -249,6 +258,9 @@ if __name__ == "__main__":
         tmp_dir = args.tmp_dir
     if args.prj_list:
         prj_list = args.prj_list
+    
+    if args.quiet:
+        logging.basicConfig(level=logging.CRITICAL+1)
 
     pw = PageViews(
         start_date=start_date, 
