@@ -5,10 +5,11 @@
 ####################################################
 
 from datetime import datetime
-import logging
 import pandas as pd
 import subprocess
 import argparse
+import logging
+import time
 import re
 import sys
 import os
@@ -168,8 +169,8 @@ class PageViews():
     
     def __dwnld_files(self):
         skipped_files = []
-        for year_month in self.dwnld_data:
-            for i, file_name in enumerate(self.dwnld_data[year_month]):  
+        for year_month in self.DWNLD_DATA:
+            for i, file_name in enumerate(self.DWNLD_DATA[year_month]):  
                 
                 dwnld_link =  f"{self.WM_DUMP_BASE_URL}/{year_month}/{file_name}"
                 logging.info(f"Num: {i+1}, Downloading {file_name}")
@@ -180,7 +181,7 @@ class PageViews():
                         break
                     elif prcs.returncode != 0:
                         logging.info(f"Download of {file_name} unsuccessful, trying again..")
-                    
+                        time.sleep(10)
                     if prcs.returncode != 0 and try_n == self.DWNLD_TRIES - 1:
                         skipped_files.append(dwnld_link)
                         logging.warning(f"Warning: Skipped file: {dwnld_link}")
