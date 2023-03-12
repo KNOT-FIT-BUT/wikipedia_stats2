@@ -107,13 +107,13 @@ class PageViews():
     
     # Check if all files for the given date range are available
     def __check_if_available(self):
-        dwnld_data_keys = list(self.dwnld_data.keys())
+        dwnld_data_keys = list(self.DWNLD_DATA.keys())
 
         first_year_month = dwnld_data_keys[0]
-        first_file_name = self.dwnld_data[first_year_month][0]
+        first_file_name = self.DWNLD_DATA[first_year_month][0]
         
         last_year_month = dwnld_data_keys[-1]
-        last_file_name = self.dwnld_data[last_year_month][-1]
+        last_file_name = self.DWNLD_DATA[last_year_month][-1]
 
         req_url_first = f"{self.WM_DUMP_BASE_URL}/{first_year_month}/{first_file_name}"
         req_urll_last = f"{self.WM_DUMP_BASE_URL}/{last_year_month}/{last_file_name}"
