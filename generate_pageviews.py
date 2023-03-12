@@ -168,7 +168,7 @@ class PageViews():
         
         logging.info("Unzipped.")
 
-        files = sorted(os.listdir(self.TMP_DIR))
+        files =  sorted([file for file in os.listdir(self.TMP_DIR) if os.path.isfile(file)])
 
         data = {}
         for file_name in files:
@@ -231,6 +231,8 @@ class PageViews():
             with open(f"{self.OUTPUT_DIR}/{out_file_name}", "w") as file_out:
                 for key, value in data_out.items():
                     file_out.write(f"{key}\t{value}\n")
+        subprocess.run(f"rm -rf {self.TMP_DIR}/*")
+
     
     def __dwnld_files(self):
         skipped_files = []
@@ -266,6 +268,7 @@ class PageViews():
         logging.info("Merging files")
         self.__final_merge()
         logging.info("Merging finished.")
+
 
     def get_pageviews(self):
         self.__dwnld_files()
