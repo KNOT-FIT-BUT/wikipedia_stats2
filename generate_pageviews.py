@@ -132,6 +132,9 @@ class PageViews():
             logging.warning("Tmp dir does not exist, creating..")
             os.mkdir(self.TMP_DIR)
         
+        for prj in self.PROJECTS:
+            os.makedirs(f"{self.TMP_DIR}/pw/{prj}",exist_ok=True)
+        
         if not os.path.exists(self.OUTPUT_DIR):
             logging.warning("Output dir does not exist, creating..")
             os.mkdir(self.OUTPUT_DIR)
@@ -185,11 +188,49 @@ class PageViews():
                             data[prj][article_name] += page_count
         logging.info("Saving..")
         for prj, values in data.items():
-            with open(f"{self.OUTPUT_DIR}/{prj}_{out_file_name}", "w") as file_out:
+            with open(f"{self.TMP_DIR}/pw/{prj}/{prj}_{out_file_name}", "w") as file_out:
                 for article_name, pw_count in values.items():
                     file_out.write(f"{article_name}\t{pw_count}\n")
         logging.debug("Removing tmp files")
-        subprocess.run(f"rm {self.TMP_DIR}/*", shell=True)
+        subprocess.run(f"rm {self.TMP_DIR}/!(*.tsv|pw)", shell=True)
+    
+    def __final_merge(self):
+
+        for prj in self.PROJECTS:
+            prj_dir = f"{self.TMP_DIR}/pw/{prj}"
+            files = os.listdir(prj_dir)
+
+            data_out = {}
+            for file_name in files:
+                logging.info(f"Processing file: {file_name}")
+
+                with open(f"{prj_dir}/{file_name}") as file_in:
+                    for line in file_in:
+                        line_data = line.strip().split("\t")
+                        article_name = line_data[0]
+
+                        # Empty line
+                        if(len(line_data) == 0): 
+                            continue
+
+                        try:
+                            pw_value = int(line_data[-1])
+                        except ValueError:
+                            sys.stderr.write("Error: value not number")
+                            exit(1)
+                        except IndexError:
+                            sys.stderr.write(f"Unable to load this line: {line.strip()}")
+                            continue
+
+                        if not article_name in data_out:
+                            data_out[article_name] = 0 
+                        data_out[article_name] += pw_value
+
+            logging.info(f"Saving project {prj}...")
+            out_file_name = f"{prj}_{self.START_DATE}_{self.END_DATE}.tsv"
+            with open(f"{self.OUTPUT_DIR}/{out_file_name}", "w") as file_out:
+                for key, value in data_out.items():
+                    file_out.write(f"{key}\t{value}\n")
     
     def __dwnld_files(self):
         skipped_files = []
@@ -221,6 +262,10 @@ class PageViews():
                     self.__prcs_files(out_file_name) 
         logging.info("Download finished.")
         logging.warning(f"Skipped files: {skipped_files}")
+        
+        logging.info("Merging files")
+        self.__final_merge()
+        logging.info("Merging finished.")
 
     def get_pageviews(self):
         self.__dwnld_files()
