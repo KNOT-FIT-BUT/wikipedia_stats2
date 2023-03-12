@@ -7,6 +7,7 @@
 from datetime import datetime
 import pandas as pd
 import subprocess
+import requests
 import argparse
 import logging
 import time
@@ -55,6 +56,7 @@ class PageViews():
         self.REGEX_DICT =  {prj:f"^{prj} {self.REGEX}" for prj in projects}
         
         self.__get_dwnld_data()
+        self.__check_if_available()
     
     def __check_date_range(self):
         if  (not re.match(self.CORRECT_DATE_FORMAT, self.START_DATE) or
@@ -100,8 +102,30 @@ class PageViews():
         try:
              self.DATE_RANGE = pd.date_range(self.START_DATE, self.END_DATE)
         except Exception as e:
-            logging.error(f"Exception: {e}")
+            logging.error(f"ERROR: Date range error {e}")
             exit(1)
+    
+    # Check if all files for the given date range are available
+    def __check_if_available(self):
+        dwnld_data_keys = list(self.dwnld_data.keys())
+
+        first_year_month = dwnld_data_keys[0]
+        first_file_name = self.dwnld_data[first_year_month][0]
+        
+        last_year_month = dwnld_data_keys[-1]
+        last_file_name = self.dwnld_data[last_year_month][-1]
+
+        req_url_first = f"{self.WM_DUMP_BASE_URL}/{first_year_month}/{first_file_name}"
+        req_urll_last = f"{self.WM_DUMP_BASE_URL}/{last_year_month}/{last_file_name}"
+
+        resp_first = requests.head(req_url_first).status_code
+        resp_last = requests.head(req_urll_last).status_code
+
+        if resp_first != 200 or resp_last != 200:
+            sys.stderr.write("ERROR: The whole date range is not yet available on the server\n")
+            exit(1)
+
+
 
     def __check_dirs(self):
         if not os.path.exists(self.TMP_DIR):
@@ -176,10 +200,13 @@ class PageViews():
                 logging.info(f"Num: {i+1}, Downloading {file_name}")
 
                 for try_n in range(self.DWNLD_TRIES):
-                    prcs = subprocess.run(f"wget \"{dwnld_link}\" -O {self.TMP_DIR}/{file_name} --quiet", shell=True)
+                    prcs = subprocess.run(
+                        f"wget \"{dwnld_link}\" -O {self.TMP_DIR}/{file_name} --quiet",
+                        shell=True)
+                    
                     if prcs.returncode == 0:
                         break
-                    elif prcs.returncode != 0:
+                    else:
                         logging.info(f"Download of {file_name} unsuccessful, trying again..")
                         time.sleep(10)
                     if prcs.returncode != 0 and try_n == self.DWNLD_TRIES - 1:
@@ -197,6 +224,7 @@ class PageViews():
 
     def get_pageviews(self):
         self.__dwnld_files()
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
