@@ -231,7 +231,7 @@ class PageViews():
             with open(f"{self.OUTPUT_DIR}/{out_file_name}", "w") as file_out:
                 for key, value in data_out.items():
                     file_out.write(f"{key}\t{value}\n")
-        subprocess.run(f"rm -rf {self.TMP_DIR}/*")
+        subprocess.run(f"rm -rf {self.TMP_DIR}/*", shell=True)
 
     
     def __dwnld_files(self):
