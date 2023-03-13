@@ -48,9 +48,9 @@ class PrimaryTags():
                 out_file.write(f"{key}\t{value}\n")
         logging.info("Saved.")
 
-    def generate_backlinks(self):
+    def generate_ptags(self):
         val_counter = 0
-        logging.info("Generating backlinks..")
+        logging.info("Generating primary tags..")
         with open(self.INPUT_FILE) as dump_file:
             for line in dump_file:
                 match = self.REGEX.match(line.strip())
@@ -104,5 +104,5 @@ if __name__ == "__main__":
 
     logging.info("Starting")
     pt = PrimaryTags(input_file=input_file, output_file=output_file)
-    pt.generate_backlinks()
+    pt.generate_ptags()
     logging.info("Finished.")
