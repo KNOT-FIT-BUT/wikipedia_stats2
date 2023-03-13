@@ -52,6 +52,7 @@ class PageViews():
         self.OUTPUT_DIR = output_dir
         self.PROJECTS = projects
         self.__check_dirs()
+        self.__tmp_cleanup()
 
         self.REGEX_DICT =  {prj:f"^{prj} {self.REGEX}" for prj in projects}
         
@@ -125,6 +126,8 @@ class PageViews():
             sys.stderr.write("ERROR: The whole date range is not yet available on the server\n")
             exit(1)
 
+    def __tmp_cleanup(self):
+        subprocess.run(f"rm -rf {self.TMP_DIR}/*", shell=True)
 
 
     def __check_dirs(self):
@@ -231,10 +234,12 @@ class PageViews():
             with open(f"{self.OUTPUT_DIR}/{out_file_name}", "w") as file_out:
                 for key, value in data_out.items():
                     file_out.write(f"{key}\t{value}\n")
-        subprocess.run(f"rm -rf {self.TMP_DIR}/*", shell=True)
-
+      
+        self.__tmp_cleanup()
     
     def __dwnld_files(self):
+        self.__tmp_cleanup()
+        
         skipped_files = []
         for year_month in self.DWNLD_DATA:
             for i, file_name in enumerate(self.DWNLD_DATA[year_month]):  
