@@ -127,7 +127,7 @@ class PageViews():
             exit(1)
 
     def __tmp_cleanup(self):
-        subprocess.run(f"rm -rf {self.TMP_DIR}/*", shell=True)
+        subprocess.run(f"rm -rf {self.TMP_DIR}/*", shell=True, executable="/bin/bash")
 
 
     def __check_dirs(self):
@@ -164,7 +164,7 @@ class PageViews():
     
     def __prcs_files(self, out_file_name:str):
         logging.info("Unzipping files")
-        prcs = subprocess.run(f"gunzip {self.TMP_DIR}/*.gz --force", shell=True)
+        prcs = subprocess.run(f"gunzip {self.TMP_DIR}/*.gz --force", shell=True, executable="/bin/bash")
         if prcs.returncode != 0:
             sys.stderr.write("FAILED TO UNZIP FILES")
             exit(1)
@@ -195,7 +195,7 @@ class PageViews():
                 for article_name, pw_count in values.items():
                     file_out.write(f"{article_name}\t{pw_count}\n")
         logging.debug("Removing tmp files")
-        subprocess.run(f"rm {self.TMP_DIR}/!(*.tsv|pw)", shell=True)
+        subprocess.run(f"rm {self.TMP_DIR}/!(*.tsv|pw)", shell=True, executable="/bin/bash")
     
     def __final_merge(self):
 
@@ -250,7 +250,8 @@ class PageViews():
                 for try_n in range(self.DWNLD_TRIES):
                     prcs = subprocess.run(
                         f"wget \"{dwnld_link}\" -O {self.TMP_DIR}/{file_name} --quiet",
-                        shell=True)
+                        shell=True,
+                        executable="/bin/bash")
                     
                     if prcs.returncode == 0:
                         break
