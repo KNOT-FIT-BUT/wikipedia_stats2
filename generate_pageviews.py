@@ -48,10 +48,10 @@ class PageViews():
         self.__check_date_range()
 
 
-        self.__check_dirs()
         self.TMP_DIR = tmp_dir
         self.OUTPUT_DIR = output_dir
         self.PROJECTS = projects
+        self.__check_dirs()
 
         self.REGEX_DICT =  {prj:f"^{prj} {self.REGEX}" for prj in projects}
         
