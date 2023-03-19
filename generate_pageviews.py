@@ -24,7 +24,7 @@ class PageViews():
     REGEX = "(?!.*:)(.*?) (\d+) 0$"
     PROJECTS = ["en", "cs", "sk"]
 
-    TMP_DIR = "tmp"
+    TMP_DIR = "pwtmp"
     OUTPUT_DIR = "pageviews"
 
     DWNLD_TRIES = 3
@@ -51,8 +51,8 @@ class PageViews():
         self.TMP_DIR = tmp_dir
         self.OUTPUT_DIR = output_dir
         self.PROJECTS = projects
-        self.__check_dirs()
         self.__tmp_cleanup()
+        self.__check_dirs()
 
         self.REGEX_DICT =  {prj:f"^{prj} {self.REGEX}" for prj in projects}
         
@@ -127,20 +127,21 @@ class PageViews():
             exit(1)
 
     def __tmp_cleanup(self):
-        subprocess.run(f"rm -rf {self.TMP_DIR}/*", shell=True, executable="/bin/bash")
+        subprocess.run(f"rm -rf {self.TMP_DIR}/*", shell=True)
 
 
     def __check_dirs(self):
-        if not os.path.exists(self.TMP_DIR):
-            logging.warning("Tmp dir does not exist, creating..")
-            os.mkdir(self.TMP_DIR)
-        
+        script_dir = os.path.abspath(os.getcwd())
+
+        os.makedirs(f"{script_dir}/{self.TMP_DIR}/pw", exist_ok=True)
+        os.makedirs(f"{script_dir}/{self.TMP_DIR}/prcs", exist_ok=True)
+ 
         for prj in self.PROJECTS:
-            os.makedirs(f"{self.TMP_DIR}/pw/{prj}",exist_ok=True)
+            os.makedirs(f"{script_dir}/{self.TMP_DIR}/pw/{prj}",exist_ok=True)
         
         if not os.path.exists(self.OUTPUT_DIR):
             logging.warning("Output dir does not exist, creating..")
-            os.mkdir(self.OUTPUT_DIR)
+            os.mkdir(f"{script_dir}/{self.OUTPUT_DIR}")
 
     def __get_dwnld_data(self):
         self.DWNLD_DATA = {}
@@ -164,19 +165,19 @@ class PageViews():
     
     def __prcs_files(self, out_file_name:str):
         logging.info("Unzipping files")
-        prcs = subprocess.run(f"gunzip {self.TMP_DIR}/*.gz --force", shell=True, executable="/bin/bash")
+        prcs = subprocess.run(f"gunzip {self.TMP_DIR}/prcs/*.gz --force", shell=True)
         if prcs.returncode != 0:
             sys.stderr.write("FAILED TO UNZIP FILES")
             exit(1)
         
         logging.info("Unzipped.")
 
-        files =  sorted([file for file in os.listdir(self.TMP_DIR) if os.path.isfile(file)])
+        files =  sorted([file for file in os.listdir(f"{self.TMP_DIR}/prcs") if os.path.isfile(file)])
 
         data = {}
         for file_name in files:
             logging.info(f"Extracting data: {file_name}")
-            with open(f"{self.TMP_DIR}/{file_name}") as file_in:
+            with open(f"{self.TMP_DIR}/prcs/{file_name}") as file_in:
                 for line in file_in:
                     line = line.strip()
                     for prj, reg in self.REGEX_DICT.items():
@@ -195,7 +196,7 @@ class PageViews():
                 for article_name, pw_count in values.items():
                     file_out.write(f"{article_name}\t{pw_count}\n")
         logging.debug("Removing tmp files")
-        subprocess.run(f"rm {self.TMP_DIR}/!(*.tsv|pw)", shell=True, executable="/bin/bash")
+        subprocess.run(f"rm -rf {self.TMP_DIR}/prcs/*", shell=True)
     
     def __final_merge(self):
 
@@ -238,8 +239,6 @@ class PageViews():
         self.__tmp_cleanup()
     
     def __dwnld_files(self):
-        self.__tmp_cleanup()
-        
         skipped_files = []
         for year_month in self.DWNLD_DATA:
             for i, file_name in enumerate(self.DWNLD_DATA[year_month]):  
@@ -249,7 +248,7 @@ class PageViews():
 
                 for try_n in range(self.DWNLD_TRIES):
                     prcs = subprocess.run(
-                        f"wget \"{dwnld_link}\" -O {self.TMP_DIR}/{file_name} --quiet",
+                        f"wget \"{dwnld_link}\" -O {self.TMP_DIR}/prcs/{file_name} --quiet",
                         shell=True,
                         executable="/bin/bash")
                     
@@ -261,7 +260,7 @@ class PageViews():
                     if prcs.returncode != 0 and try_n == self.DWNLD_TRIES - 1:
                         skipped_files.append(dwnld_link)
                         logging.warning(f"Warning: Skipped file: {dwnld_link}")
-                        os.remove(f"{self.TMP_DIR}/{file_name}")
+                        os.remove(f"{self.TMP_DIR}/prcs/{file_name}")
                 
 
                 if (i+1) % 24 == 0:
@@ -343,7 +342,7 @@ if __name__ == "__main__":
     
     # Deafults
     out_dir = "pageviews"
-    tmp_dir = "tmp"
+    tmp_dir = "pwtmp"
     prj_list = ["en", "cs", "sk"]
 
     if args.out_dir:
