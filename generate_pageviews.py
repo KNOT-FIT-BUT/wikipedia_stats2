@@ -15,26 +15,38 @@ import re
 import sys
 import os
 
+# Log level -> only info
 log_level = logging.INFO
+# Log format -> display only message, no metadata
 logging.basicConfig(level=log_level, format='%(message)s')
 
 class PageViews():
+    # Base url for wm dumps
     WM_DUMP_BASE_URL = "https://dumps.wikimedia.org/other/pageviews"
 
     REGEX = "(?!.*:)(.*?) (\d+) 0$"
+
+    # Default tracked projects
     PROJECTS = ["en", "cs", "sk"]
 
+    # Dirs for temp/out files
     TMP_DIR = "pwtmp"
     OUTPUT_DIR = "pageviews"
 
+    # Num of tries, if download fails
     DWNLD_TRIES = 3
 
+    # Correct date format for input 
     CORRECT_DATE_FORMAT = r"^\d{4}-\d{2}-\d{2}$"
+
+    # No dumps before this date
     START_DATE_MINIMUM = datetime(2015, 5, 1)
 
+    # Date range, specifies user
     START_DATE = ""
     END_DATE = ""
 
+    # Set class attributes and perform neccessary checks and cleanups
     def __init__(
         self,
         start_date:str,
@@ -59,6 +71,7 @@ class PageViews():
         self.__get_dwnld_data()
         self.__check_if_available()
     
+    # Checks for possible errors in inputed dates, exits on incorrect date formats or future dates
     def __check_date_range(self):
         if  (not re.match(self.CORRECT_DATE_FORMAT, self.START_DATE) or
             not re.match(self.CORRECT_DATE_FORMAT, self.END_DATE)):
@@ -106,7 +119,8 @@ class PageViews():
             logging.error(f"ERROR: Date range error {e}")
             exit(1)
     
-    # Check if all files for the given date range are available
+    # Checks if all files for the given date range are available
+    # Exits with error if not
     def __check_if_available(self):
         dwnld_data_keys = list(self.DWNLD_DATA.keys())
 
@@ -126,10 +140,14 @@ class PageViews():
             sys.stderr.write("ERROR: The whole date range is not yet available on the server\n")
             exit(1)
 
+    # Deletes files in a temp dir
+    # Necessary before/after the script
     def __tmp_cleanup(self):
         subprocess.run(f"rm -rf {self.TMP_DIR}/*", shell=True)
 
 
+    # Checks if out/tmp dirs exist
+    # Creates them if not
     def __check_dirs(self):
         script_dir = os.path.abspath(os.getcwd())
 
@@ -143,6 +161,7 @@ class PageViews():
             logging.warning("Output dir does not exist, creating..")
             os.mkdir(f"{script_dir}/{self.OUTPUT_DIR}")
 
+    # Generates all download links for the specified date range
     def __get_dwnld_data(self):
         self.DWNLD_DATA = {}
         
@@ -163,6 +182,9 @@ class PageViews():
                 file_name = f"pageviews-{year}{month}{day}-{hour}0000.gz"
                 self.DWNLD_DATA[year_month].append(file_name)
     
+    # Unzips downloaded pageviews data for one day
+    # Merges them into one file
+    # Exits with error on fail
     def __prcs_files(self, out_file_name:str):
         logging.info("Unzipping files")
         prcs = subprocess.run(f"gunzip {self.TMP_DIR}/prcs/*.gz --force", shell=True)
@@ -172,7 +194,7 @@ class PageViews():
         
         logging.info("Unzipped.")
 
-        files =  sorted([file for file in os.listdir(f"{self.TMP_DIR}/prcs") if os.path.isfile(file)])
+        files =  sorted([file for file in os.listdir(f"{self.TMP_DIR}/prcs")])
 
         data = {}
         for file_name in files:
@@ -198,6 +220,7 @@ class PageViews():
         logging.debug("Removing tmp files")
         subprocess.run(f"rm -rf {self.TMP_DIR}/prcs/*", shell=True)
     
+    # Merges all daily files into one file
     def __final_merge(self):
 
         for prj in self.PROJECTS:
@@ -238,6 +261,9 @@ class PageViews():
       
         self.__tmp_cleanup()
     
+    # Download hourly data from the specified date range
+    # Merge them into daily data
+    # Finally merge into one file
     def __dwnld_files(self):
         skipped_files = []
         for year_month in self.DWNLD_DATA:
@@ -274,12 +300,13 @@ class PageViews():
         self.__final_merge()
         logging.info("Merging finished.")
 
-
+    # Runs the dwnld_files method
     def get_pageviews(self):
         self.__dwnld_files()
 
-
+# If script run from CLI
 if __name__ == "__main__":
+    # Parse arguments
     parser = argparse.ArgumentParser()
     
     parser.add_argument(
@@ -352,9 +379,11 @@ if __name__ == "__main__":
     if args.prj_list:
         prj_list = args.prj_list
     
+    # Do not print anything
     if args.quiet:
         logging.basicConfig(level=logging.CRITICAL+1)
 
+    # Generate pageviews
     pw = PageViews(
         start_date=start_date, 
         end_date=end_date,
