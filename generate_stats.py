@@ -5,7 +5,7 @@
 ############################################
 
 from datetime import datetime
-
+import csv
 import logging
 import subprocess
 import sys
@@ -16,6 +16,7 @@ from generate_backlinks import Backlinks
 from generate_primary_tags import PrimaryTags
 from generate_pageviews import PageViews
 
+csv.field_size_limit(sys.maxsize)
 
 TMP_DIR = "unmerged"
 OUT_DIR = "test_out"
@@ -28,6 +29,8 @@ if not os.path.exists(OUT_DIR):
 
 
 DATA_FILE = "data/last_update"
+PROJECT_FILES = "data/project_files"
+
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 SEC_IN_DAY = 86400
 
@@ -96,9 +99,10 @@ for key, value in PROJECTS.items():
     if latest_dump_timestamp > last_timestamp:
         print(f"Latest dump ({key}): {latest_dump}")
         dumps_info[key] = {
-                    "path":f"{check_dir}/{latest_dump}", 
-                    "latest_timestamp": latest_dump_timestamp
-                     } 
+            "path":f"{check_dir}/{latest_dump}", 
+            "latest_timestamp": latest_dump_timestamp
+            }
+
 if len(dumps_info) == 0:
     print("Everything up to date.")
     exit(0)
@@ -123,12 +127,12 @@ print("Generating pageviews")
 subprocess.run("rm -rf pwout/*", shell=True)
 
 # Generate pageviews
-pw = PageViews(start_date, end_date, tmp_dir="pwtemp", output_dir="pwout")
+pw = PageViews(start_date, end_date, tmp_dir="pwtemp", output_dir="pwout", output_file="pageviews.tsv")
 pw.get_pageviews()
 
 # Move generated pageviews to a temp dir
 for prj in PROJECTS.keys():
-    prcs = subprocess.run(f"mv pwout/{prj}* {TMP_DIR}/{prj}", shell=True)
+    prcs = subprocess.run(f"mv pwout/{prj}_pageviews.tsv {TMP_DIR}/{prj}", shell=True)
     if prcs.returncode != 0:
         sys.stderr.write("Error while moving pageviews data\n")
         exit(1)
@@ -149,45 +153,74 @@ for prj, dump_info in dumps_info.items():
     print("--------------------")
 
 
+# TODO LOAD PREVIOUS FILES
 
-print("Merging data")
-# Merge dataa to one file
+# Load previous file
+projects_files_data = {}
+with open(PROJECT_FILES) as prj_data_in:
+    projects_files_data = json.loads(prj_data_in.read())
+
+
+print("Merging")
+
 for prj in dumps_info.keys():
-    data_out = {}
-    data_dir = f"{TMP_DIR}/{prj}"
     
-    print(f"Merging project: {prj}")
-
-    files = os.listdir(data_dir)
-    for file_name in files:
-        print(f"Processing file: {file_name}")
-        with open(f"{data_dir}/{file_name}") as file_in:
-            for line in file_in:
-                line_data = line.strip().split("\t")
-                article_name = line_data[0]
-
-                # Empty line
-                if(len(line_data) == 0):
-                    continue
-
+    out_data = {}
+    
+    # Load previous data for project
+    prev_file_path = projects_files_data[prj]
+    with open(prev_file_path) as prev_file_in:
+        for line in prev_file_in:
+            in_data = csv.reader(prev_file_in, delimeter="\t")
+            for val in in_data:
                 try:
-                    pw_value = int(line_data[-1])
+                    art_name = val[0]
+                    bl_count = val[1]
+                    pw_count = val[2]
+                    pr_count = val[3]
                 except ValueError:
-                    sys.stderr.write("Error: value not a number\n")
-                    sys.stderr.write(line)
+                    sys.stderr.write(f"Error while loading previous data (prj:{prj})\n")
                     exit(1)
-                except IndexError:
-                    sys.stderr.write(f"Unable to load this line {line.strip()}")
+
+                out_data[art_name] = [bl_count, pw_count, pr_count]
+
+    bl_file = f"{TMP_DIR}/{prj}/backlinks.tsv"
+    pw_file = f"{TMP_DIR}/{prj}/{prj}_pageviews.tsv"
+    pr_file = f"{TMP_DIR}/{prj}/prtags.tsv"
+
+    with open(bl_file) as bl_in, open(pw_file) as pw_in, open(pr_file) as pr_in:
+        
+        # Files in order of output format
+        in_files_list = [bl_in, pw_in, pr_in]i
+        pw_idx = 1
+
+        for idx, file in enumerate(in_files_list, start=0):
+            in_data = csv.reader(file, delimiter="\t")
+            for val in in_data:
+                art_name = val[0]
+                try:
+                    count = int(val[1])
+                except ValueError:
                     continue
 
-                if not article_name in data_out:
-                    data_out[article_name] = 0
-                data_out[article_name] += pw_value
-    print(f"Saving {prj} merge")
+                if art_name not in out_data:
+                    out_data[art_name] = ["NF", "NF", "NF"]
+                
+                # If pw_count --> add values
+                # Else -> rewrite them
+                if idx == pw_idx:
+                    out_data[art_name][idx] += count
+                    continue
+                out_data[art_name][idx] = count
+
+    print("Saving data..")
     with open(f"{OUT_DIR}/{prj}_{end_date}.tsv", "w") as file_out:
-        for key, value in data_out.items():
-            file_out.write(f"{key}\t{value}\n")
-                    
+        for key, values in out_data.items():
+            file_out.write(key)
+            for value in values:
+                file_out.write(f"\t{value}")
+            file_out.write("\n")
+
 print("Finished. Updating date.")
 update_date(end_date_timestamp)
 print("Date updated.")
