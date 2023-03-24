@@ -73,7 +73,7 @@ class PrimaryTags():
                     else:
                         self.PT_DATA[a_name] = 1
                     val_counter += 1
-        self.__save_to_file)
+        self.__save_to_file()
         logging.info("Generation complete.")
         logging.info(f"Generated {val_counter} values.")
         return val_counter
