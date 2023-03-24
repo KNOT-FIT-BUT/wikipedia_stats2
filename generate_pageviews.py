@@ -32,6 +32,7 @@ class PageViews():
     # Dirs for temp/out files
     TMP_DIR = "pwtmp"
     OUTPUT_DIR = "pageviews"
+    OUTPUT_FILE = ""
 
     # Num of tries, if download fails
     DWNLD_TRIES = 3
@@ -53,6 +54,7 @@ class PageViews():
         end_date:str, 
         tmp_dir:str=TMP_DIR,
         output_dir:str=OUTPUT_DIR,
+        output_file:str=OUTPUT_FILE,
         projects:list=PROJECTS
     ):
         self.START_DATE = start_date
@@ -62,6 +64,7 @@ class PageViews():
 
         self.TMP_DIR = tmp_dir
         self.OUTPUT_DIR = output_dir
+        self.OUTPUT_FILE = output_file
         self.PROJECTS = projects
         self.__tmp_cleanup()
         self.__check_dirs()
@@ -255,6 +258,8 @@ class PageViews():
 
             logging.info(f"Saving project {prj}...")
             out_file_name = f"{prj}_{self.START_DATE}_{self.END_DATE}.tsv"
+            if self.OUTPUT_FILE:
+                out_file_name = f"{prj}_{self.OUTPUT_FILE}"
             with open(f"{self.OUTPUT_DIR}/{out_file_name}", "w") as file_out:
                 for key, value in data_out.items():
                     file_out.write(f"{key}\t{value}\n")
