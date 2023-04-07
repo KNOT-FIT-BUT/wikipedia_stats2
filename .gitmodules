@@ -1,0 +1,3 @@
+[submodule "entity_kb_czech3"]
+	path = entity_kb_czech3
+	url = git@github.com:KNOT-FIT-BUT/entity_kb_czech3.git
