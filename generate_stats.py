@@ -5,9 +5,10 @@
 ############################################
 
 from datetime import datetime
-import csv
-import logging
 import subprocess
+import logging
+import json
+import csv
 import sys
 import os
 import re
@@ -19,13 +20,13 @@ from generate_pageviews import PageViews
 csv.field_size_limit(sys.maxsize)
 
 TMP_DIR = "unmerged"
-OUT_DIR = "test_out"
+STATS_DIR = "test_out"
 
 if not os.path.exists(TMP_DIR):
     os.mkdir(TMP_DIR)
 
-if not os.path.exists(OUT_DIR):
-    os.mkdir(OUT_DIR)
+if not os.path.exists(STATS_DIR):
+    os.mkdir(STATS_DIR)
 
 
 DATA_FILE = "data/last_update"
@@ -66,8 +67,24 @@ def update_date(timestamp):
     with open(DATA_FILE, "w") as file_out:
         file_out.write(timestamp)
 
-print("Cleaning temp dir")
-subprocess.run(f"rm -r {TMP_DIR}/*", shell=True)
+# Load previous file
+def load_prev_files_data():
+    # Check if files exist
+    projects_files_data = {}
+    with open(PROJECT_FILES) as prj_data_in:
+        projects_files_data = json.loads(prj_data_in.read())
+    for key, value in projects_files_data.items():
+        if not os.path.exists(value):
+            sys.stderr.write(f"Error: ({key}) project file not found\n")
+            sys.stderr.write(f"({value})\n")
+            exit(1)
+
+    return projects_files_data
+
+print("Cleaning temp dir..")
+subprocess.run(f"rm -rf {TMP_DIR}/*", shell=True)
+print("Checking previous project files..")
+projects_files_data = load_prev_files_data()
 
 # Get the latest dump for each project
 dumps_info = {}
@@ -153,53 +170,52 @@ for prj, dump_info in dumps_info.items():
     print("--------------------")
 
 
-# TODO LOAD PREVIOUS FILES
-
-# Load previous file
-projects_files_data = {}
-with open(PROJECT_FILES) as prj_data_in:
-    projects_files_data = json.loads(prj_data_in.read())
-
-
-print("Merging")
+print("Loading previous data")
 
 for prj in dumps_info.keys():
     
     out_data = {}
     
+
     # Load previous data for project
     prev_file_path = projects_files_data[prj]
     with open(prev_file_path) as prev_file_in:
+        print(f"Loading {prj}: {prev_file_path}")
         for line in prev_file_in:
-            in_data = csv.reader(prev_file_in, delimeter="\t")
+            in_data = csv.reader(prev_file_in, delimiter="\t")
             for val in in_data:
                 try:
                     art_name = val[0]
                     bl_count = val[1]
                     pw_count = val[2]
                     pr_count = val[3]
-                except ValueError:
-                    sys.stderr.write(f"Error while loading previous data (prj:{prj})\n")
-                    exit(1)
-
+                except IndexError:
+                    continue
                 out_data[art_name] = [bl_count, pw_count, pr_count]
 
     bl_file = f"{TMP_DIR}/{prj}/backlinks.tsv"
     pw_file = f"{TMP_DIR}/{prj}/{prj}_pageviews.tsv"
     pr_file = f"{TMP_DIR}/{prj}/prtags.tsv"
+    
+    print(f"Mergins {prj}")
 
+    # Merge data with previous file
     with open(bl_file) as bl_in, open(pw_file) as pw_in, open(pr_file) as pr_in:
         
         # Files in order of output format
-        in_files_list = [bl_in, pw_in, pr_in]i
+        in_files_list = [bl_in, pw_in, pr_in]
         pw_idx = 1
 
         for idx, file in enumerate(in_files_list, start=0):
             in_data = csv.reader(file, delimiter="\t")
             for val in in_data:
                 art_name = val[0]
+                
+                # Get stat value
                 try:
                     count = int(val[1])
+
+                # Invalid stat --> ignore
                 except ValueError:
                     continue
 
@@ -209,12 +225,17 @@ for prj in dumps_info.keys():
                 # If pw_count --> add values
                 # Else -> rewrite them
                 if idx == pw_idx:
-                    out_data[art_name][idx] += count
+                    if out_data[art_name][idx] == "NF":
+                        out_data[art_name][idx] = count
+                    else:
+                        prev_pw_count = int(out_data[art_name][idx])
+                        out_data[art_name][idx] = prev_pw_count+count
                     continue
+                
                 out_data[art_name][idx] = count
 
     print("Saving data..")
-    with open(f"{OUT_DIR}/{prj}_{end_date}.tsv", "w") as file_out:
+    with open(f"{STATS_DIR}/{prj}_{end_date}.tsv", "w") as file_out:
         for key, values in out_data.items():
             file_out.write(key)
             for value in values:
