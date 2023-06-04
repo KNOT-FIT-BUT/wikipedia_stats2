@@ -4,6 +4,7 @@
 # Date:   12 Feb 2023                      #
 ############################################
 
+from kb_head import KB_HEAD_TEMPLATE
 import argparse
 import time
 import csv
@@ -85,6 +86,15 @@ with open(bl_file) as bl_in, open(pw_file) as pw_in, open(pr_file) as pr_in:
 
 print("Saving data..")
 with open(out_file, "w") as file_out:
+    # KB HEAD
+    for type, columns in KB_HEAD_TEMPLATE.items():
+        file_out.write(type)
+        for column in columns:
+            file_out.write(column + "\t")
+        file_out.write("\n")
+    file_out.write("\n")
+
+    # KB DATA
     for key, values in out_data.items():
         file_out.write(key)
         for value in values:
