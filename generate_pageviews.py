@@ -126,10 +126,14 @@ class PageViews():
     # Exits with error if not
     def __check_if_available(self):
         dwnld_data_keys = list(self.DWNLD_DATA.keys())
-
         first_year_month = dwnld_data_keys[0]
-        first_file_name = self.DWNLD_DATA[first_year_month][0]
+
+        # Special case for start of pageviews dumps
+        if "20150501-000000" in self.DWNLD_DATA[first_year_month][0]:
+            self.DWNLD_DATA[first_year_month] = self.DWNLD_DATA[first_year_month][1:]
         
+        first_file_name = self.DWNLD_DATA[first_year_month][0]
+
         last_year_month = dwnld_data_keys[-1]
         last_file_name = self.DWNLD_DATA[last_year_month][-1]
 
