@@ -62,4 +62,5 @@ if __name__ == "__main__":
     kb = KnowledgeBase(path_to_kb=input_file)
     
     # Insert stats to KB
-    kb.insert_stats(stats_file=stats_file)
+    kb.insert_stats(stats_file=stats_file, save_changes=False)
+    kb.save_changes(output_file=output_file)
