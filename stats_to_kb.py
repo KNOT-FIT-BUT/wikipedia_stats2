@@ -62,5 +62,10 @@ if __name__ == "__main__":
     kb = KnowledgeBase(path_to_kb=input_file)
     
     # Insert stats to KB
-    kb.insert_stats(stats_file=stats_file, save_changes=False)
+    if not kb.insert_stats(stats_file=stats_file, save_changes=False):
+        print("Warning: some or all stats already in present in KB")
+        print("Stat inserting skipped...")
+
     kb.save_changes(output_file=output_file)
+
+
