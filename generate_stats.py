@@ -20,7 +20,7 @@ from generate_pageviews import PageViews
 csv.field_size_limit(sys.maxsize)
 
 TMP_DIR = "unmerged"
-STATS_DIR = "test_out"
+STATS_DIR = "stats"
 
 if not os.path.exists(TMP_DIR):
     os.mkdir(TMP_DIR)
