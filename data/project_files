@@ -1,5 +1,5 @@
 {
-    "cs":"/mnt/minerva1/nlp/projects/wikipedia_stats2/stats/cs_wiki.tsv",
-    "en":"/mnt/minerva1/nlp/projects/wikipedia_stats2/stats/en_wiki.tsv",
-    "sk":"/mnt/minerva1/nlp/projects/wikipedia_stats2/stats/sk_wiki.tsv"
+    "cs":"/mnt/minerva1/nlp-in/wikipedia-statistics/stats/cs_wiki.tsv",
+    "en":"/mnt/minerva1/nlp-in/wikipedia-statistics/stats/en_wiki.tsv",
+    "sk":"/mnt/minerva1/nlp-in/wikipedia-statistics/stats/sk_wiki.tsv"
 }
