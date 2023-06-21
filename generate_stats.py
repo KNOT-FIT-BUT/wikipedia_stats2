@@ -175,45 +175,48 @@ print("Loading previous data")
 for prj in dumps_info.keys():
     
     out_data = {}
-    
+    STATS_HEAD = ""
 
     # Load previous data for project
     prev_file_path = projects_files_data[prj]
+    
     with open(prev_file_path) as prev_file_in:
+        # Load head
+        while (line := prev_file_in.readline()).strip() != "":
+            STATS_HEAD += line
+                
+        # Load data
         print(f"Loading {prj}: {prev_file_path}")
         for line in prev_file_in:
-            in_data = csv.reader(prev_file_in, delimiter="\t")
-            for val in in_data:
-                try:
-                    art_name = val[0]
-                    bl_count = val[1]
-                    pw_count = val[2]
-                    pr_count = val[3]
-                except IndexError:
-                    continue
-                out_data[art_name] = [bl_count, pw_count, pr_count]
+            in_data = [val.strip() for val in line.split("\t")]      
+            try:
+                art_name = in_data[0]
+                bl_count = in_data[1]
+                pw_count = in_data[2]
+                pr_count = in_data[3]
+            except IndexError:
+                continue
+            out_data[art_name] = [bl_count, pw_count, pr_count]
 
     bl_file = f"{TMP_DIR}/{prj}/backlinks.tsv"
     pw_file = f"{TMP_DIR}/{prj}/{prj}_pageviews.tsv"
     pr_file = f"{TMP_DIR}/{prj}/prtags.tsv"
     
-    print(f"Mergins {prj}")
-
+    print(f"Merging {prj}")
     # Merge data with previous file
     with open(bl_file) as bl_in, open(pw_file) as pw_in, open(pr_file) as pr_in:
-        
         # Files in order of output format
         in_files_list = [bl_in, pw_in, pr_in]
         pw_idx = 1
 
         for idx, file in enumerate(in_files_list, start=0):
-            in_data = csv.reader(file, delimiter="\t")
-            for val in in_data:
-                art_name = val[0]
-                
+            for line in file:
+                values = [val.strip() for val in line.split("\t")]
+                art_name = values[0]
+
                 # Get stat value
                 try:
-                    count = int(val[1])
+                    count = int(values[1])
 
                 # Invalid stat --> ignore
                 except ValueError:
@@ -231,11 +234,17 @@ for prj in dumps_info.keys():
                         prev_pw_count = int(out_data[art_name][idx])
                         out_data[art_name][idx] = prev_pw_count+count
                     continue
-                
+                    print("len of data_out before merge:", len(out_data))
+
                 out_data[art_name][idx] = count
 
     print("Saving data..")
-    with open(f"{STATS_DIR}/{prj}_{end_date}.tsv", "w") as file_out:
+    print("len", len(out_data))
+    with open(prev_file_path, "w") as file_out:
+        # Write head
+        file_out.write(STATS_HEAD)
+
+        # Write data
         for key, values in out_data.items():
             file_out.write(key)
             for value in values:
