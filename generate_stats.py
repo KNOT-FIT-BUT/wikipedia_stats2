@@ -29,8 +29,8 @@ if not os.path.exists(STATS_DIR):
     os.mkdir(STATS_DIR)
 
 
-DATA_FILE = "data/last_update"
-PROJECT_FILES = "data/project_files"
+DATA_FILE = "/mnt/minerva1/nlp-in/wikipedia-statistics/data/last_update"
+PROJECT_FILES = "/mnt/minerva1/nlp-in/wikipedia-statistics/data/project_files"
 
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 SEC_IN_DAY = 86400
