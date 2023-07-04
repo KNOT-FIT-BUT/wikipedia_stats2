@@ -234,7 +234,6 @@ for prj in dumps_info.keys():
                         prev_pw_count = int(out_data[art_name][idx])
                         out_data[art_name][idx] = prev_pw_count+count
                     continue
-                    print("len of data_out before merge:", len(out_data))
 
                 out_data[art_name][idx] = count
 
