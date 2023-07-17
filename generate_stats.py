@@ -238,10 +238,12 @@ for prj in dumps_info.keys():
                 out_data[art_name][idx] = count
 
     print("Saving data..")
-    print("len", len(out_data))
     with open(prev_file_path, "w") as file_out:
+       
         # Write head
         file_out.write(STATS_HEAD)
+        if not STATS_HEAD.endswith("\n\n"):
+            file_out.write("\n")
 
         # Write data
         for key, values in out_data.items():
