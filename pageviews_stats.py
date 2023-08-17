@@ -18,53 +18,40 @@ import re
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-TMP_DIR = "PS_TMP"
-STATS_DIR = "/mnt/minerva1/nlp-in/wikipedia-statistics/stats"
+from generate_pageviews import PageViews
+from config import *
 
-if not os.path.exists(TMP_DIR):
-    os.mkdir(TMP_DIR)
+TMP_DIR = tempfile.mkdtemp(prefix="ws_pw_")
+os.mkdir(f"{TMP_DIR}/pwtemp")
+os.mkdir(f"{TMP_DIR}/pwout")
 
 if not os.path.exists(STATS_DIR):
-    os.mkdir(STATS_DIR)
+    print("Error: Stats directory does not exits, exiting.")
+    exit(1)
 
 
-DATA_FILE = "/mnt/minerva1/nlp-in/wikipedia-statistics/data/last_update"
-PROJECT_FILES = "/mnt/minerva1/nlp-in/wikipedia-statistics/data/project_files"
+FILE_NAME_REG = re.compile(PAGES_ARTICLES_DUMP_REG)
 
-DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
-SEC_IN_DAY = 86400
-
-DUMP_DIR = "/mnt/minerva1/nlp/corpora_datasets/monolingual/{}/wikipedia"
-FILE_NAME_REG = re.compile(r"^(?:cs|en|sk)wiki-\d{8}-pages-articles.xml$")
-PROJECTS = {
-    "en": "english",
-    "cs": "czech", 
-    "sk": "slovak"
-}
-
-
-# Converts epoch to date in this format: YYYY-MM-DD
-def timestamp_to_date(timestamp:str) -> str:
-    return datetime.fromtimestamp(int(timestamp)).strftime('%Y-%m-%d')
-
-
-# Loads the timestamp representing the last run of the script
-# This file must be present in order for the script to work correcty
-def load_prev_date():
+def load_prev_date() -> datetime:
     with open(DATA_FILE) as file_in:
-        timestamp = file_in.readline()
+        line = file_in.readline()
         try:
-            timestamp = int(timestamp)
-        except ValueError:
-            sys.stderr.write("Date to epoch conversion error\n")
-            exit(1)    
-    return timestamp
+            year, month, day = [int(val) for val in line.split("-")]
+            last_update = datetime(year, month, day)
 
-# Saves the current timestamp to a datafile
-def update_date(timestamp):
-    timestamp = str(timestamp)
+        except FileNotFoundError:
+            sys.stderr.write("File not found\n")
+            exit(1)    
+        except:
+            sys.stderr.write("Conversion error - ERROR in last_update file\n")
+            exit(1)
+
+    return last_update
+
+def update_date(new_date:datetime) -> None:
     with open(DATA_FILE, "w") as file_out:
-        file_out.write(timestamp)
+        file_out.write(new_date.strftime(DATE_FORMAT))
+
 
 # Load previous file
 def load_prev_files_data():
@@ -104,15 +91,15 @@ for key, value in PROJECTS.items():
     month = int(date[4:6])
     day = int(date[6:])
 
-    latest_dump_timestamp = int(datetime(year, month, day).strftime("%s"))
+    latest_dump_timestamp = datetime(year, month, day)
     last_timestamp = load_prev_date()
     
     # Compare if new dumps exist
     if latest_dump_timestamp > last_timestamp:
         print(f"Latest dump ({key}): {latest_dump}")
         dumps_info[key] = {
-            "path":f"{check_dir}/{latest_dump}", 
-            "latest_timestamp": latest_dump_timestamp
+                "path":f"{check_dir}/{latest_dump}", 
+                "latest_timestamp": latest_dump_timestamp
             }
 
 if len(dumps_info) == 0:
@@ -126,17 +113,17 @@ if len(dumps_info) != len(PROJECTS):
 
 
 # Date range from the last update until now                  
-start_date_timestamp = load_prev_date()
-end_date_timestamp = min([item["latest_timestamp"] for item in list(dumps_info.values())])-SEC_IN_DAY
+start_date = load_prev_date()
+end_date = min([item["latest_timestamp"] for item in list(dumps_info.values())])-timedelta(days=1)
 
-start_date = timestamp_to_date(start_date_timestamp)
-end_date = timestamp_to_date(end_date_timestamp)
+start_date_str = start_date.strftime(DATE_FORMAT)
+end_date_str = end_date.strftime(DATE_FORMAT)
 
-print("Date range:", start_date, end_date)
-
+print("Date range:", start_date_str, end_date_str)
 print("Generating pageviews")                   
 # Generate pageviews
-pw = PageViews(start_date, end_date, tmp_dir="pwtemp", output_dir="pwout", output_file="pageviews.tsv")
+
+pw = PageViews(start_date_str, end_date_str, tmp_dir=f"{TMP_DIR}/pwtemp", output_dir=f"{TMP_DIR}/pwout", output_file="pageviews.tsv")
 pw.get_pageviews()
 
 # Move generated pageviews to a temp dir
@@ -220,7 +207,7 @@ for prj in dumps_info.keys():
             file_out.write("\n")
 
 print("Finished. Updating date.")
-update_date(end_date_timestamp)
+update_date(end_date+timedelta(days=1))
 print("Date updated.")
 
 shutil.rmtree(TMP_DIR)
