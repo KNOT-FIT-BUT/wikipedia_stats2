@@ -3,7 +3,7 @@
 WS_BASE_DIR = "/mnt/minerva1/nlp-in/wikipedia-statistics/"
 STATS_DIR = WS_BASE_DIR + "stats/"
 DATA_DIR = WS_BASE_DIR + "data/"
-DATA_FILE = DATA_DIR + "last_update2"
+DATA_FILE = DATA_DIR + "last_update"
 PROJECT_FILES = DATA_DIR + "project_files"
 
 DUMP_DIR = "/mnt/minerva1/nlp/corpora_datasets/monolingual/{}/wikipedia"
