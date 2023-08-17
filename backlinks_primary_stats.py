@@ -20,53 +20,17 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 from generate_backlinks import Backlinks
 from generate_primary_tags import PrimaryTags
-from generate_pageviews import PageViews
+from config import *
 
-csv.field_size_limit(sys.maxsize)
-
-TMP_DIR = "BPS_TEMP"
-STATS_DIR = "/mnt/minerva1/nlp-in/wikipedia-statistics/stats"
-
-if not os.path.exists(TMP_DIR):
-    os.mkdir(TMP_DIR)
+TMP_DIR = tempfile.mkdtemp(prefix="ws_bps_")
 
 if not os.path.exists(STATS_DIR):
-    os.mkdir(STATS_DIR)
+    print("Error: Stats directory does not exits, exiting.")
+    exit(1)
 
+FILE_NAME_REG = re.compile(PAGES_ARTICLES_DUMP_REG)
 
-DATA_FILE = "/mnt/minerva1/nlp-in/wikipedia-statistics/data/last_update"
-PROJECT_FILES = "/mnt/minerva1/nlp-in/wikipedia-statistics/data/project_files"
-
-DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
-SEC_IN_DAY = 86400
-
-DUMP_DIR = "/mnt/minerva1/nlp/corpora_datasets/monolingual/{}/wikipedia"
-FILE_NAME_REG = re.compile(r"^(?:cs|en|sk)wiki-\d{8}-pages-articles.xml$")
-PROJECTS = {
-    "en": "english",
-    "cs": "czech", 
-    "sk": "slovak"
-}
-
-
-# Load previous file
-def load_prev_files_data():
-    # Check if files exist
-    projects_files_data = {}
-    with open(PROJECT_FILES) as prj_data_in:
-        projects_files_data = json.loads(prj_data_in.read())
-    for key, value in projects_files_data.items():
-        if not os.path.exists(value):
-            sys.stderr.write(f"Error: ({key}) project file not found\n")
-            sys.stderr.write(f"({value})\n")
-            exit(1)
-
-    return projects_files_data
-
-print("Cleaning temp dir..")
-subprocess.run(f"rm -rf {TMP_DIR}/*", shell=True)
 print("Checking previous project files..")
-projects_files_data = load_prev_files_data()
 
 # Get the latest dump for each project
 dumps_info = {}
@@ -101,12 +65,6 @@ if len(dumps_info) == 0:
     print("Everything up to date.")
     exit(0)
 
-# Every project must have a new dump in order for the script to run
-if len(dumps_info) != len(PROJECTS):
-    sys.stderr.write("Error: not all dumps are yet available\n")
-    exit(1)
-
-
 # Generate primary tags and backlinks
 for prj, dump_info in dumps_info.items():
     
@@ -117,9 +75,6 @@ for prj, dump_info in dumps_info.items():
     bl.generate_backlinks()
     del bl
 
-    pt = PrimaryTags(dump_path, f"{TMP_DIR}/{prj}/prtags.tsv")
-    pt.generate_ptags()
-    del pt
     print("--------------------")
 
 
@@ -131,7 +86,7 @@ for prj in dumps_info.keys():
     STATS_HEAD = ""
 
     # Load previous data for project
-    prev_file_path = projects_files_data[prj]
+    prev_file_path = f"{STATS_DIR.rstrip('/')}/bps/{prj}_bps.tsv"
     
     with open(prev_file_path) as prev_file_in:
         print(f"Loading {prev_file_path}")
@@ -146,56 +101,39 @@ for prj in dumps_info.keys():
             try:
                 art_name = in_data[0]
                 bl_count = in_data[1]
-                pw_count = in_data[2]
-                pr_count = in_data[3]
+                pr_count = in_data[2]
+
             except IndexError:
                 continue
-            out_data[art_name] = [bl_count, pw_count, pr_count]
+            out_data[art_name] = [bl_count, pr_count]
 
     bl_file = f"{TMP_DIR}/{prj}/backlinks.tsv"
-    pr_file = f"{TMP_DIR}/{prj}/prtags.tsv"
     
-    print(f"Merging {prj}")
+    print(f"Merging {prj}..")
     # Merge data with previous file
-    with open(bl_file) as bl_in, open(pr_file) as pr_in:
-        # Files in order of output format
-        in_files_list = [bl_in, None, pr_in]
-
-        for idx, file in enumerate(in_files_list, start=0):
-            
-            if file is None:
-                continue
-
-            for line in file:
-                values = [val.strip() for val in line.split("\t")]
-                art_name = values[0]
-
-                # Get stat value
-                try:
-                    count = int(values[1])
-
-                # Invalid stat --> ignore
-                except ValueError:
-                    continue
-
-                if art_name not in out_data:
-                    out_data[art_name] = ["NF", "NF", "NF"]
-                
-                out_data[art_name][idx] = count
-
-    print("Saving data..")
-    with open(prev_file_path, "w") as file_out:
+    with open(bl_file) as bl_in, open(prev_file_path, "w") as file_out:
         # Write head
         file_out.write(STATS_HEAD)
         if not STATS_HEAD.endswith("\n\n"):
             file_out.write("\n")
 
-        # Write data
-        for key, values in out_data.items():
-            file_out.write(key)
-            for value in values:
-                file_out.write(f"\t{value}")
-            file_out.write("\n")
+        for line in bl_in:
+            values = [val.strip() for val in line.split("\t")]
+            art_name = values[0]
+
+            # Default value if not found
+            ps_cout = bl_count = "NF"
+
+            try:
+                ps_count = int(PrimaryTags.is_primary(art_name))
+                bl_count = int(values[1])
+
+            # Invalid stat --> ignore
+            except ValueError:
+                pass
+    
+            file_out.write(f"{art_name}\t{bl_count}\t{ps_count}\n")
+
 
 shutil.rmtree(TMP_DIR)
 print("Done.")

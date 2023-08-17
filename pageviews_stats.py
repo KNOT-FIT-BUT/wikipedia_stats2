@@ -141,7 +141,8 @@ for prj in dumps_info.keys():
     STATS_HEAD = ""
 
     # Load previous data for project
-    prev_file_path = projects_files_data[prj]
+    prev_file_path = f"{STATS_DIR.rstrip('/')}/pageviews/{prj}_pageviews.tsv"
+
     
     with open(prev_file_path) as prev_file_in:
         # Load head
@@ -154,21 +155,18 @@ for prj in dumps_info.keys():
             in_data = [val.strip() for val in line.split("\t")]      
             try:
                 art_name = in_data[0]
-                bl_count = in_data[1]
-                pw_count = in_data[2]
-                pr_count = in_data[3]
+                pw_count = in_data[1]
+
             except IndexError:
                 continue
-            out_data[art_name] = [bl_count, pw_count, pr_count]
+            
+            out_data[art_name] = pw_count
 
-    bl_file = f"{TMP_DIR}/{prj}/backlinks.tsv"
     pw_file = f"{TMP_DIR}/{prj}/{prj}_pageviews.tsv"
-    pr_file = f"{TMP_DIR}/{prj}/prtags.tsv"
     
     print(f"Merging {prj}")
     # Merge data with previous file
     with open(pw_file) as pw_in:
-        pw_idx = 1
         for line in pw_in:
             values = [val.strip() for val in line.split("\t")]
             art_name = values[0]
@@ -180,17 +178,14 @@ for prj in dumps_info.keys():
             # Invalid stat --> ignore
             except ValueError:
                 continue
-
-            if art_name not in out_data:
-                out_data[art_name] = ["NF", "NF", "NF"]
             
             # If pw_count --> add values
             # Else -> rewrite them
-            if out_data[art_name][pw_idx] == "NF":
-                out_data[art_name][pw_idx] = count
+            if out_data[art_name] == "NF":
+                out_data[art_name] = count
             else:
-                prev_pw_count = int(out_data[art_name][pw_idx])
-                out_data[art_name][pw_idx] = prev_pw_count+count
+                prev_pw_count = int(out_data[art_name])
+                out_data[art_name] = prev_pw_count+count
 
     print("Saving data..")
     with open(prev_file_path, "w") as file_out:
@@ -200,11 +195,8 @@ for prj in dumps_info.keys():
             file_out.write("\n")
 
         # Write data
-        for key, values in out_data.items():
-            file_out.write(key)
-            for value in values:
-                file_out.write(f"\t{value}")
-            file_out.write("\n")
+        for article, value in out_data.items():
+            file_out.write(f"{article}\t{value}\n")
 
 print("Finished. Updating date.")
 update_date(end_date+timedelta(days=1))
