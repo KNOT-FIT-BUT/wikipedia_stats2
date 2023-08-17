@@ -6,9 +6,11 @@
 # Date:   15 Jul 2023                              #
 ####################################################
 
-from datetime import datetime
+from datetime import datetime, timedelta
 import subprocess
+import tempfile
 import logging
+import shutil
 import json
 import sys
 import os
@@ -78,8 +80,6 @@ def load_prev_files_data():
 
     return projects_files_data
 
-print("Cleaning temp dir..")
-subprocess.run(f"rm -rf {TMP_DIR}/*", shell=True)
 print("Checking previous project files..")
 projects_files_data = load_prev_files_data()
 
@@ -92,9 +92,7 @@ for key, value in PROJECTS.items():
         sys.stderr.write(f"Error: dump dir does not exist ({check_dir})\n")
         exit(1)
 
-    if not os.path.exists(f"{TMP_DIR}/{key}"):
-        os.mkdir(f"{TMP_DIR}/{key}")
-
+    os.mkdir(f"{TMP_DIR}/{key}")
     
     files = os.listdir(check_dir)
 
@@ -137,20 +135,16 @@ end_date = timestamp_to_date(end_date_timestamp)
 print("Date range:", start_date, end_date)
 
 print("Generating pageviews")                   
-
-subprocess.run("rm -rf pwout/*", shell=True)
-
 # Generate pageviews
 pw = PageViews(start_date, end_date, tmp_dir="pwtemp", output_dir="pwout", output_file="pageviews.tsv")
 pw.get_pageviews()
 
 # Move generated pageviews to a temp dir
 for prj in PROJECTS.keys():
-    prcs = subprocess.run(f"mv pwout/{prj}_pageviews.tsv {TMP_DIR}/{prj}", shell=True)
+    prcs = subprocess.run(f"mv {TMP_DIR}/pwout/{prj}_pageviews.tsv {TMP_DIR}/{prj}", shell=True)
     if prcs.returncode != 0:
         sys.stderr.write("Error while moving pageviews data\n")
         exit(1)
-
 
 print("Loading previous data")
 
@@ -228,4 +222,7 @@ for prj in dumps_info.keys():
 print("Finished. Updating date.")
 update_date(end_date_timestamp)
 print("Date updated.")
+
+shutil.rmtree(TMP_DIR)
+print("Done.")
 

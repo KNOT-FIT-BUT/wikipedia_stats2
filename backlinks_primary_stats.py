@@ -8,9 +8,10 @@
 
 from datetime import datetime
 import subprocess
+import tempfile
 import logging
+import shutil
 import json
-import csv
 import sys
 import os
 import re
@@ -76,9 +77,7 @@ for key, value in PROJECTS.items():
         sys.stderr.write(f"Error: dump dir does not exist ({check_dir})\n")
         exit(1)
 
-    if not os.path.exists(f"{TMP_DIR}/{key}"):
-        os.mkdir(f"{TMP_DIR}/{key}")
-
+    os.mkdir(f"{TMP_DIR}/{key}")
     
     files = os.listdir(check_dir)
 
@@ -198,6 +197,7 @@ for prj in dumps_info.keys():
                 file_out.write(f"\t{value}")
             file_out.write("\n")
 
+shutil.rmtree(TMP_DIR)
 print("Done.")
 
 
