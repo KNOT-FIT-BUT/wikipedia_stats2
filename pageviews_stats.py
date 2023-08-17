@@ -14,8 +14,7 @@ import sys
 import os
 import re
 
-from generate_pageviews import PageViews
-
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 TMP_DIR = "PS_TMP"
 STATS_DIR = "/mnt/minerva1/nlp-in/wikipedia-statistics/stats"

@@ -15,6 +15,8 @@ import sys
 import os
 import re
 
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
 from generate_backlinks import Backlinks
 from generate_primary_tags import PrimaryTags
 from generate_pageviews import PageViews
