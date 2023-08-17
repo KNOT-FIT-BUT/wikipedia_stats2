@@ -56,6 +56,12 @@ class PrimaryTags():
                 out_file.write(f"{key}\t{value}\n")
         self.PT_DATA.clear()
     
+    @staticmethod
+    def is_primary(a_name:str) -> bool:
+        if ",_" in a_name or "(" in a_name:
+            return False
+        return True
+
     # Generates primary tags from a given input dump file
     # (primary tags must match the search pattern)
     # (also must not contain "(" or ",_" ... else not a primary link
@@ -68,7 +74,7 @@ class PrimaryTags():
                 match = self.REGEX.match(line.strip())
                 if match:
                     a_name = match.group(1).replace(" ", "_")   
-                    if ",_" in a_name or "(" in a_name:
+                    if self.is_primary(a_name):
                         self.PT_DATA[a_name] = 0
                     else:
                         self.PT_DATA[a_name] = 1
