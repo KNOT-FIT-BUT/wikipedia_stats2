@@ -138,10 +138,10 @@ class PageViews():
         last_file_name = self.DWNLD_DATA[last_year_month][-1]
 
         req_url_first = f"{self.WM_DUMP_BASE_URL}/{first_year_month}/{first_file_name}"
-        req_urll_last = f"{self.WM_DUMP_BASE_URL}/{last_year_month}/{last_file_name}"
+        req_url_last = f"{self.WM_DUMP_BASE_URL}/{last_year_month}/{last_file_name}"
 
         resp_first = requests.head(req_url_first).status_code
-        resp_last = requests.head(req_urll_last).status_code
+        resp_last = requests.head(req_url_last).status_code
 
         if resp_first != 200 or resp_last != 200:
             sys.stderr.write("ERROR: The whole date range is not yet available on the server\n")
