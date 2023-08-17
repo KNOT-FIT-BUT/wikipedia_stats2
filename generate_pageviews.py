@@ -156,17 +156,16 @@ class PageViews():
     # Checks if out/tmp dirs exist
     # Creates them if not
     def __check_dirs(self):
-        script_dir = os.path.abspath(os.getcwd())
 
-        os.makedirs(f"{script_dir}/{self.TMP_DIR}/pw", exist_ok=True)
-        os.makedirs(f"{script_dir}/{self.TMP_DIR}/prcs", exist_ok=True)
+        os.makedirs(f"{self.TMP_DIR}/pw", exist_ok=True)
+        os.makedirs(f"{self.TMP_DIR}/prcs", exist_ok=True)
  
         for prj in self.PROJECTS:
-            os.makedirs(f"{script_dir}/{self.TMP_DIR}/pw/{prj}",exist_ok=True)
+            os.makedirs(f"{self.TMP_DIR}/pw/{prj}",exist_ok=True)
         
         if not os.path.exists(self.OUTPUT_DIR):
             logging.warning("Output dir does not exist, creating..")
-            os.mkdir(f"{script_dir}/{self.OUTPUT_DIR}")
+            os.mkdir(self.OUTPUT_DIR)
 
     # Generates all download links for the specified date range
     def __get_dwnld_data(self):
