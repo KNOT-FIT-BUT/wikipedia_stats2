@@ -15,17 +15,26 @@ if __name__ == "__main__":
         type = str, 
         required=True,
         action="store",
-        dest="input_file",
+        dest="input_kb",
         help = "Input file",
     )
 
     io_parser.add_argument(
-        "-s","--stats", 
+        "-pw","--pageviews", 
         type = str, 
         required=True,
         action="store",
-        dest="stats_file",
-        help = "File with statisticss",
+        dest="pw_file",
+        help = "Stats file with pageviews",
+    )
+
+    io_parser.add_argument(
+        "-bps","--backlinks-primary-sense", 
+        type = str, 
+        required=True,
+        action="store",
+        dest="bps_file",
+        help = "Stats file with backlinks and primary tags (bps)",
     )
 
     io_parser.add_argument(
@@ -39,33 +48,36 @@ if __name__ == "__main__":
 
     args = io_parser.parse_args()
 
-    input_file = args.input_file
+    input_kb = args.input_kb
     output_file = args.output_file
-    stats_file = args.stats_file
+    pw_file = args.pw_file
+    bps_file = args.bps_file
 
-    # Check if input_file, stats_file exists
-    if not os.path.exists(os.path.abspath(input_file)):
+    # Check if input_kb, stats_file exists
+    if not os.path.exists(input_kb):
         sys.stderr.write("Error: Input KB does not exist\n")
         exit(1)
 
-    if not os.path.exists(os.path.abspath(stats_file)):
+    if not os.path.exists(pw_file):
+        sys.stderr.write("Error: Pageviews file does not exist\n")
+        exit(1)
+    
+    if not os.path.exists(bps_file):
         sys.stderr.write("Error: Stats file does not exist\n")
         exit(1)
 
+
     # If no output file given 
     # Output file will be in the following format:
-    # 'input_file+stats.tsv'
+    # 'input_kb+stats.tsv'
     if output_file is None:
         output_file = ""
 
     # Knowledge base class 
-    kb = KnowledgeBase(path_to_kb=input_file)
+    kb = KnowledgeBase(path_to_kb=input_kb)
     
     # Insert stats to KB
-    if not kb.insert_stats(stats_file=stats_file, save_changes=False):
-        print("Warning: some or all stats already in present in KB")
-        print("Stat inserting skipped...")
-
-    kb.save_changes(output_file=output_file)
+    if  kb.insert_stats(pw_path=pw_file, bps_path=bps_file, save_changes=False):
+        kb.save_changes(output_file=output_file)
 
 
