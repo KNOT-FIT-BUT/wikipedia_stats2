@@ -18,6 +18,7 @@ import re
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
+from locking import FileLock
 from generate_pageviews import PageViews
 from config import *
 
@@ -33,42 +34,29 @@ if not os.path.exists(STATS_DIR):
 FILE_NAME_REG = re.compile(PAGES_ARTICLES_DUMP_REG)
 
 def load_prev_date() -> datetime:
-    with open(DATA_FILE) as file_in:
-        line = file_in.readline()
-        try:
-            year, month, day = [int(val) for val in line.split("-")]
-            last_update = datetime(year, month, day)
+    try:
+        with FileLock(file_path=DATA_FILE,mode="r+", timeout_sec=FILE_LOCK_TIMEOUT) as file_in: 
+            
+            line = file_in.readline()
+            try:
+                year, month, day = [int(val) for val in line.split("-")]
+                last_update = datetime(year, month, day)
 
-        except FileNotFoundError:
-            sys.stderr.write("File not found\n")
-            exit(1)    
-        except:
-            sys.stderr.write("Conversion error - ERROR in last_update file\n")
-            exit(1)
-
+            except FileNotFoundError:
+                sys.stderr.write("File not found\n")
+                exit(1)    
+            except:
+                sys.stderr.write("Conversion error - ERROR in last_update file\n")
+                exit(1)
+    except OSError:
+        print(LOCKED_FILE_MESSAGE)
+        exit(1)
+    
     return last_update
 
 def update_date(new_date:datetime) -> None:
     with open(DATA_FILE, "w") as file_out:
         file_out.write(new_date.strftime(DATE_FORMAT))
-
-
-# Load previous file
-def load_prev_files_data():
-    # Check if files exist
-    projects_files_data = {}
-    with open(PROJECT_FILES) as prj_data_in:
-        projects_files_data = json.loads(prj_data_in.read())
-    for key, value in projects_files_data.items():
-        if not os.path.exists(value):
-            sys.stderr.write(f"Error: ({key}) project file not found\n")
-            sys.stderr.write(f"({value})\n")
-            exit(1)
-
-    return projects_files_data
-
-print("Checking previous project files..")
-projects_files_data = load_prev_files_data()
 
 # Get the latest dump for each project
 dumps_info = {}
@@ -143,65 +131,78 @@ for prj in dumps_info.keys():
     # Load previous data for project
     prev_file_path = f"{STATS_DIR.rstrip('/')}/pageviews/{prj}_pageviews.tsv"
 
-    
-    with open(prev_file_path) as prev_file_in:
-        # Load head
-        while (line := prev_file_in.readline()).strip() != "":
-            STATS_HEAD += line
+    try:
+        with FileLock(prev_file_path, timeout_sec=FILE_LOCK_TIMEOUT) as prev_file_in:
+            # Load head
+            while (line := prev_file_in.readline()).strip() != "":
+                STATS_HEAD += line
+                    
+            # Load data
+            print(f"Loading {prj}: {prev_file_path}")
+            for line in prev_file_in:
+                in_data = [val.strip() for val in line.split("\t")]      
+                try:
+                    art_name = in_data[0]
+                    pw_count = in_data[1]
+
+                except IndexError:
+                    continue
                 
-        # Load data
-        print(f"Loading {prj}: {prev_file_path}")
-        for line in prev_file_in:
-            in_data = [val.strip() for val in line.split("\t")]      
-            try:
-                art_name = in_data[0]
-                pw_count = in_data[1]
-
-            except IndexError:
-                continue
-            
-            out_data[art_name] = pw_count
-
+                out_data[art_name] = pw_count
+    except TimeoutError:
+        print(LOCKED_FILE_MESSAGE)
+        exit(1)
+    
+    
     pw_file = f"{TMP_DIR}/{prj}/{prj}_pageviews.tsv"
     
     print(f"Merging {prj}")
     # Merge data with previous file
-    with open(pw_file) as pw_in:
-        for line in pw_in:
-            values = [val.strip() for val in line.split("\t")]
-            art_name = values[0]
+    try:
+        with FileLock(pw_file, timeout_sec=FILE_LOCK_TIMEOUT) as pw_in:
+            for line in pw_in:
+                values = [val.strip() for val in line.split("\t")]
+                art_name = values[0]
 
-            # Get stat value
-            try:
-                count = int(values[1])
+                # Get stat value
+                try:
+                    count = int(values[1])
 
-            # Invalid stat --> ignore
-            except ValueError:
-                continue
-            
-            # If pw_count --> add values
-            # Else -> rewrite them
-            if out_data[art_name] == "NF":
-                out_data[art_name] = count
-            else:
-                prev_pw_count = int(out_data[art_name])
-                out_data[art_name] = prev_pw_count+count
-
+                # Invalid stat --> ignore
+                except ValueError:
+                    continue
+                
+                # If pw_count --> add values
+                # Else -> rewrite them
+                if out_data[art_name] == "NF":
+                    out_data[art_name] = count
+                else:
+                    prev_pw_count = int(out_data[art_name])
+                    out_data[art_name] = prev_pw_count+count
+    except TimeoutError:
+        print(LOCKED_FILE_MESSAGE)
+        exit(1)
+        
     print("Saving data..")
-    with open(prev_file_path, "w") as file_out:
-        # Write head
-        file_out.write(STATS_HEAD)
-        if not STATS_HEAD.endswith("\n\n"):
-            file_out.write("\n")
+    try:
+        with FileLock(prev_file_path, mode="w", timeout_sec=FILE_LOCK_TIMEOUT) as file_out:
+            # Write head
+            file_out.write(STATS_HEAD)
+            if not STATS_HEAD.endswith("\n\n"):
+                file_out.write("\n")
 
-        # Write data
-        for article, value in out_data.items():
-            file_out.write(f"{article}\t{value}\n")
+            # Write data
+            for article, value in out_data.items():
+                file_out.write(f"{article}\t{value}\n")
+    except TimeoutError:
+        print(LOCKED_FILE_MESSAGE)
+        exit(1)
 
 print("Finished. Updating date.")
 update_date(end_date+timedelta(days=1))
 print("Date updated.")
 
 shutil.rmtree(TMP_DIR)
+subprocess.run(f"rm -rf {TMP_DIR}", shell=True)
 print("Done.")
 

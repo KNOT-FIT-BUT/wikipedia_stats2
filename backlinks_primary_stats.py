@@ -6,6 +6,7 @@
 # Date:   15 Jul 2023                              #
 ####################################################
 
+from ws_file_locking.locking import FileLock
 from datetime import datetime
 import subprocess
 import tempfile
@@ -18,8 +19,9 @@ import re
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-from generate_backlinks import Backlinks
 from generate_primary_tags import PrimaryTags
+from generate_backlinks import Backlinks
+from locking import FileLock
 from config import *
 
 TMP_DIR = tempfile.mkdtemp(prefix="ws_bps_")
@@ -88,54 +90,70 @@ for prj in dumps_info.keys():
     # Load previous data for project
     prev_file_path = f"{STATS_DIR.rstrip('/')}/bps/{prj}_bps.tsv"
     
-    with open(prev_file_path) as prev_file_in:
-        print(f"Loading {prev_file_path}")
-        # Load head
-        while (line := prev_file_in.readline()).strip() != "":
-            STATS_HEAD += line
-                
-        # Load data
-        print(f"Loading {prj}: {prev_file_path}")
-        for line in prev_file_in:
-            in_data = [val.strip() for val in line.split("\t")]      
-            try:
-                art_name = in_data[0]
-                bl_count = in_data[1]
-                pr_count = in_data[2]
+    try:
+        with FileLock(
+            file_path=prev_file_path,
+            mode="r+",
+            timeout_sec=FILE_LOCK_TIMEOUT) as prev_file_in: 
+                   
+            print(f"Loading {prev_file_path}")
+            # Load head
+            while (line := prev_file_in.readline()).strip() != "":
+                STATS_HEAD += line
+                    
+            # Load data
+            print(f"Loading {prj}: {prev_file_path}")
+            for line in prev_file_in:
+                in_data = [val.strip() for val in line.split("\t")]      
+                try:
+                    art_name = in_data[0]
+                    bl_count = in_data[1]
+                    pr_count = in_data[2]
 
-            except IndexError:
-                continue
-            out_data[art_name] = [bl_count, pr_count]
+                except IndexError:
+                    continue
+                out_data[art_name] = [bl_count, pr_count]
+    except TimeoutError:
+        print(LOCKED_FILE_MESSAGE)
+        exit(1)
 
     bl_file = f"{TMP_DIR}/{prj}/backlinks.tsv"
     
     print(f"Merging {prj}..")
     # Merge data with previous file
-    with open(bl_file) as bl_in, open(prev_file_path, "w") as file_out:
-        # Write head
-        file_out.write(STATS_HEAD)
-        if not STATS_HEAD.endswith("\n\n"):
-            file_out.write("\n")
+    try:
+        with FileLock(
+            file_path=prev_file_path,
+            mode="w",
+            timeout_sec=FILE_LOCK_TIMEOUT) as file_out, open(bl_file) as bl_in: 
 
-        for line in bl_in:
-            values = [val.strip() for val in line.split("\t")]
-            art_name = values[0]
+                # Write head
+                file_out.write(STATS_HEAD)
+                if not STATS_HEAD.endswith("\n\n"):
+                    file_out.write("\n")
 
-            # Default value if not found
-            ps_cout = bl_count = "NF"
+                for line in bl_in:
+                    values = [val.strip() for val in line.split("\t")]
+                    art_name = values[0]
 
-            try:
-                ps_count = int(PrimaryTags.is_primary(art_name))
-                bl_count = int(values[1])
+                    # Default value if not found
+                    ps_cout = bl_count = "NF"
 
-            # Invalid stat --> ignore
-            except ValueError:
-                pass
-    
-            file_out.write(f"{art_name}\t{bl_count}\t{ps_count}\n")
+                    try:
+                        ps_count = int(PrimaryTags.is_primary(art_name))
+                        bl_count = int(values[1])
 
+                    # Invalid stat --> ignore
+                    except ValueError:
+                        pass
+            
+                    file_out.write(f"{art_name}\t{bl_count}\t{ps_count}\n") 
+    except TimeoutError:
+        print(LOCKED_FILE_MESSAGE)
+        exit(1)
 
 shutil.rmtree(TMP_DIR)
+subprocess.run(f"rm -rf {TMP_DIR}", shell=True)
 print("Done.")
 
 

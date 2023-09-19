@@ -1,6 +1,6 @@
 [submodule "kb_metrics"]
 	path = kb_metrics
-	url = https://github.com/KNOT-FIT-BUT/kb_metrics/
+	url = git@github.com:KNOT-FIT-BUT/kb_metrics.git
 [submodule "ws_file_locking"]
 	path = ws_file_locking
-	url = https://github.com/KNOT-FIT-BUT/ws_file_locking.git
+	url = git@github.com:KNOT-FIT-BUT/ws_file_locking.git

@@ -19,3 +19,5 @@ PROJECTS = {
 
 PAGES_ARTICLES_DUMP_REG = r"^(?:cs|en|sk)wiki-\d{8}-pages-articles.xml$"
 
+FILE_LOCK_TIMEOUT = 600 # 10 minutes
+LOCKED_FILE_MESSAGE = "File Acquisition Timeout: Process Exiting with Failure"
