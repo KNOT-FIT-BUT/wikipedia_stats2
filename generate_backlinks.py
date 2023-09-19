@@ -100,14 +100,15 @@ class Backlinks():
         logging.info("Generating backlinks..")
         with open(self.INPUT_FILE) as dump_file:
             for line in dump_file:
-                match = self.REGEX.match(line)
-                if match:
-                    a_name = match.group(1).replace(" ", "_")
-                    if a_name not in self.BL_DATA:
-                        self.BL_DATA[a_name] = 1
-                    else:
-                        self.BL_DATA[a_name] += 1
-                    val_counter += 1
+                matches = self.REGEX.findall(line)
+                if matches:
+                    for match in matches:
+                        a_name = match.replace(" ", "_")
+                        if a_name not in self.BL_DATA:
+                            self.BL_DATA[a_name] = 1 
+                        else:
+                            self.BL_DATA[a_name] += 1
+                        val_counter += 1
         
         logging.info("Removing redirects..")
         redirects_num = self.remove_redirects()
