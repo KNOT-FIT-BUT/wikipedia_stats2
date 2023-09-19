@@ -6,3 +6,7 @@ dumps/
 tmp/
 pageviews/
 output/
+
+
+*.log
+*.tsv

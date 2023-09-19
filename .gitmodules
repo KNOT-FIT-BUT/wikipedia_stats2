@@ -1,6 +1,6 @@
-[submodule "entity_kb_czech3"]
-	path = entity_kb_czech3
-	url = git@github.com:KNOT-FIT-BUT/entity_kb_czech3.git
 [submodule "kb_metrics"]
 	path = kb_metrics
 	url = https://github.com/KNOT-FIT-BUT/kb_metrics/
+[submodule "ws_file_locking"]
+	path = ws_file_locking
+	url = https://github.com/KNOT-FIT-BUT/ws_file_locking.git
