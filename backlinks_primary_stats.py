@@ -6,7 +6,7 @@
 # Date:   15 Jul 2023                              #
 ####################################################
 
-from ws_file_locking.locking import FileLock
+from kb_metrics.ws_file_locking.locking import FileLock
 from datetime import datetime
 import subprocess
 import tempfile
@@ -21,7 +21,6 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 from generate_primary_tags import PrimaryTags
 from generate_backlinks import Backlinks
-from locking import FileLock
 from config import *
 
 TMP_DIR = tempfile.mkdtemp(prefix="ws_bps_")

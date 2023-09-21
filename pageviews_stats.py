@@ -18,7 +18,7 @@ import re
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-from locking import FileLock
+from kb_metrics.ws_file_locking.locking import FileLock
 from generate_pageviews import PageViews
 from config import *
 
