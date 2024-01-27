@@ -118,6 +118,11 @@ for prj in dumps_info.keys():
 
     bl_file = f"{TMP_DIR}/{prj}/backlinks.tsv"
     
+    new_file_path = os.path.join(
+        STATS_DIR, 
+        f"bps/{datetime.now().strftime(FILE_DATE_FORMAT)}_{prj}_bps.tsv"
+    )
+    
     print(f"Merging {prj}..")
     # Merge data with previous file
     try:

@@ -9,6 +9,8 @@ PROJECT_FILES = DATA_DIR + "project_files"
 DUMP_DIR = "/mnt/minerva1/nlp/corpora_datasets/monolingual/{}/wikipedia"
 
 DATE_FORMAT = "%Y-%m-%d"
+FILE_DATE_FORMAT = "%Y_%m_%d_%H_%M_%S"
+
 SEC_IN_DAY = 86400
 
 PROJECTS = {
