@@ -6,13 +6,12 @@
 # Date:   15 Jul 2023                              #
 ####################################################
 
-from kb_metrics.ws_file_locking.locking import FileLock
 from datetime import datetime
+from os.path import realpath
 import subprocess
 import tempfile
-import logging
 import shutil
-import json
+import signal
 import sys
 import os
 import re
@@ -21,9 +20,13 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 from generate_primary_tags import PrimaryTags
 from generate_backlinks import Backlinks
+from cleanup import delete_temp_dir
+from symlink import symlink
 from config import *
 
 TMP_DIR = tempfile.mkdtemp(prefix="ws_bps_")
+
+signal.signal(signal.SIGINT, lambda sig, frame: delete_temp_dir(TMP_DIR))
 
 if not os.path.exists(STATS_DIR):
     print("Error: Stats directory does not exits, exiting.")
@@ -87,34 +90,26 @@ for prj in dumps_info.keys():
     STATS_HEAD = ""
 
     # Load previous data for project
-    prev_file_path = f"{STATS_DIR.rstrip('/')}/bps/{prj}_bps.tsv"
+    prev_file_path = os.path.join(STATS_DIR, f"bps/latest_{prj}_bps.tsv")
     
-    try:
-        with FileLock(
-            file_path=prev_file_path,
-            mode="r+",
-            timeout_sec=FILE_LOCK_TIMEOUT) as prev_file_in: 
-                   
-            print(f"Loading {prev_file_path}")
-            # Load head
-            while (line := prev_file_in.readline()).strip() != "":
-                STATS_HEAD += line
-                    
-            # Load data
-            print(f"Loading {prj}: {prev_file_path}")
-            for line in prev_file_in:
-                in_data = [val.strip() for val in line.split("\t")]      
-                try:
-                    art_name = in_data[0]
-                    bl_count = in_data[1]
-                    pr_count = in_data[2]
+    with open(prev_file_path, "r") as prev_file_in:          
+        print(f"Loading {prev_file_path}")
+        # Load head
+        while (line := prev_file_in.readline()).strip() != "":
+            STATS_HEAD += line
+                
+        # Load data
+        print(f"Loading {prj}: {prev_file_path}")
+        for line in prev_file_in:
+            in_data = [val.strip() for val in line.split("\t")]      
+            try:
+                art_name = in_data[0]
+                bl_count = in_data[1]
+                pr_count = in_data[2]
 
-                except IndexError:
-                    continue
-                out_data[art_name] = [bl_count, pr_count]
-    except TimeoutError:
-        print(LOCKED_FILE_MESSAGE)
-        exit(1)
+            except IndexError:
+                continue
+            out_data[art_name] = [bl_count, pr_count]
 
     bl_file = f"{TMP_DIR}/{prj}/backlinks.tsv"
     
@@ -125,39 +120,45 @@ for prj in dumps_info.keys():
     
     print(f"Merging {prj}..")
     # Merge data with previous file
-    try:
-        with FileLock(
-            file_path=prev_file_path,
-            mode="w",
-            timeout_sec=FILE_LOCK_TIMEOUT) as file_out, open(bl_file) as bl_in: 
+    with open(new_file_path, "w") as file_out, open(bl_file, "r") as bl_in:
+            # Write head
+            file_out.write(STATS_HEAD)
+            if not STATS_HEAD.endswith("\n\n"):
+                file_out.write("\n")
 
-                # Write head
-                file_out.write(STATS_HEAD)
-                if not STATS_HEAD.endswith("\n\n"):
-                    file_out.write("\n")
+            for line in bl_in:
+                values = [val.strip() for val in line.split("\t")]
+                art_name = values[0]
 
-                for line in bl_in:
-                    values = [val.strip() for val in line.split("\t")]
-                    art_name = values[0]
+                # Default value if not found
+                ps_cout = bl_count = "NF"
 
-                    # Default value if not found
-                    ps_cout = bl_count = "NF"
+                try:
+                    ps_count = int(PrimaryTags.is_primary(art_name))
+                    bl_count = int(values[1])
 
-                    try:
-                        ps_count = int(PrimaryTags.is_primary(art_name))
-                        bl_count = int(values[1])
+                # Invalid stat --> ignore
+                except ValueError:
+                    pass
+        
+                file_out.write(f"{art_name}\t{bl_count}\t{ps_count}\n") 
+    
+    
+    # Update symlinks (keep only last three versions of file)
+    latest_path = prev_file_path
+    previous_path = os.path.join(STATS_DIR, f"bps/previous_{prj}_bps.tsv")
+    second_previous_path = os.path.join(STATS_DIR, f"bps/second_previous_{prj}_bps.tsv")
+    
+    # Delete the last version
+    os.remove(realpath(second_previous_path)) if os.path.exists(realpath(second_previous_path)) else None
+    
+    # Shift symlinks 
+    symlink(realpath(previous_path), second_previous_path)
+    symlink(realpath(latest_path), previous_path)
+    symlink(realpath(new_file_path), latest_path)
+    
 
-                    # Invalid stat --> ignore
-                    except ValueError:
-                        pass
-            
-                    file_out.write(f"{art_name}\t{bl_count}\t{ps_count}\n") 
-    except TimeoutError:
-        print(LOCKED_FILE_MESSAGE)
-        exit(1)
-
-shutil.rmtree(TMP_DIR)
-subprocess.run(f"rm -rf {TMP_DIR}", shell=True)
+delete_temp_dir(TMP_DIR)
 print("Done.")
 
 
